@@ -86,10 +86,10 @@ blueprint:
           description: >-
             The signal remains on for at least this duration, even if the source
             switches off earlier. After this minimum, an On/Off source keeps the
-            signal on until it switches off or the maximum duration is reached.
-            For an Input Button, this is the complete signal duration. Set it to 0
-            to let an On/Off source control the duration directly; an Input Button
-            then creates only a short pulse.
+            signal on until it switches off. For an Input Button, this is the
+            requested signal duration. The global safety timeout always takes
+            precedence. Set this value to 0 to let an On/Off source control the
+            duration directly; an Input Button then creates only a short pulse.
           default: 0
           selector:
             number:
@@ -98,21 +98,6 @@ blueprint:
               step: 0.1
               unit_of_measurement: min
               mode: box
-        signal_1_max_minutes:
-          name: Maximum signal duration
-          description: >-
-            Safety limit while an On/Off entity remains on. Must be greater than
-            or equal to the minimum signal duration. This value is not used for
-            Input Buttons.
-          default: 60
-          selector:
-            number:
-              min: 0.1
-              max: 480
-              step: 0.1
-              unit_of_measurement: min
-              mode: box
-
     signal_2:
       name: Signal source 2
       icon: mdi:numeric-2-circle
@@ -153,10 +138,10 @@ blueprint:
           description: >-
             The signal remains on for at least this duration, even if the source
             switches off earlier. After this minimum, an On/Off source keeps the
-            signal on until it switches off or the maximum duration is reached.
-            For an Input Button, this is the complete signal duration. Set it to 0
-            to let an On/Off source control the duration directly; an Input Button
-            then creates only a short pulse.
+            signal on until it switches off. For an Input Button, this is the
+            requested signal duration. The global safety timeout always takes
+            precedence. Set this value to 0 to let an On/Off source control the
+            duration directly; an Input Button then creates only a short pulse.
           default: 0
           selector:
             number:
@@ -165,20 +150,6 @@ blueprint:
               step: 0.1
               unit_of_measurement: min
               mode: box
-        signal_2_max_minutes:
-          name: Maximum signal duration
-          description: >-
-            Must be greater than or equal to the minimum signal duration. This
-            value is not used for Input Buttons.
-          default: 60
-          selector:
-            number:
-              min: 0.1
-              max: 480
-              step: 0.1
-              unit_of_measurement: min
-              mode: box
-
     signal_3:
       name: Signal source 3
       icon: mdi:numeric-3-circle
@@ -219,10 +190,10 @@ blueprint:
           description: >-
             The signal remains on for at least this duration, even if the source
             switches off earlier. After this minimum, an On/Off source keeps the
-            signal on until it switches off or the maximum duration is reached.
-            For an Input Button, this is the complete signal duration. Set it to 0
-            to let an On/Off source control the duration directly; an Input Button
-            then creates only a short pulse.
+            signal on until it switches off. For an Input Button, this is the
+            requested signal duration. The global safety timeout always takes
+            precedence. Set this value to 0 to let an On/Off source control the
+            duration directly; an Input Button then creates only a short pulse.
           default: 0
           selector:
             number:
@@ -231,20 +202,6 @@ blueprint:
               step: 0.1
               unit_of_measurement: min
               mode: box
-        signal_3_max_minutes:
-          name: Maximum signal duration
-          description: >-
-            Must be greater than or equal to the minimum signal duration. This
-            value is not used for Input Buttons.
-          default: 60
-          selector:
-            number:
-              min: 0.1
-              max: 480
-              step: 0.1
-              unit_of_measurement: min
-              mode: box
-
     schedule_1:
       name: Schedule 1
       icon: mdi:clock-outline
@@ -631,6 +588,10 @@ triggers:
     event: start
     id: startup
 
+  - trigger: event
+    event_type: automation_reloaded
+    id: automation_reloaded
+
 variables:
   limodor_switch: !input limodor_switch
   global_max_signal_minutes: !input global_max_signal_minutes
@@ -639,24 +600,12 @@ variables:
 
   signal_1_entity: !input signal_1_entity
   signal_1_min_minutes: !input signal_1_min_minutes
-  signal_1_max_minutes: !input signal_1_max_minutes
-  signal_1_remaining_seconds: >-
-    {{ [((((signal_1_max_minutes | float(0)) -
-            (signal_1_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
 
   signal_2_entity: !input signal_2_entity
   signal_2_min_minutes: !input signal_2_min_minutes
-  signal_2_max_minutes: !input signal_2_max_minutes
-  signal_2_remaining_seconds: >-
-    {{ [((((signal_2_max_minutes | float(0)) -
-            (signal_2_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
 
   signal_3_entity: !input signal_3_entity
   signal_3_min_minutes: !input signal_3_min_minutes
-  signal_3_max_minutes: !input signal_3_max_minutes
-  signal_3_remaining_seconds: >-
-    {{ [((((signal_3_max_minutes | float(0)) -
-            (signal_3_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
 
   schedule_1_condition_entity: !input schedule_1_condition_entity
   schedule_1_condition_required_on: !input schedule_1_condition_required_on
@@ -687,21 +636,26 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input signal_1_min_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
                   {{ is_state(signal_1_entity, 'on') and
-                     (signal_1_remaining_seconds | int(0)) > 0 }}
+                     is_state(limodor_switch, 'on') }}
             then:
               - wait_for_trigger:
                   - trigger: state
                     entity_id: !input signal_1_entity
                     to: "off"
-                timeout:
-                  seconds: "{{ signal_1_remaining_seconds | int(0) }}"
-                continue_on_timeout: true
+                  - trigger: state
+                    entity_id: !input limodor_switch
+                    to: "off"
           - if:
               - condition: template
                 value_template: >-
@@ -719,8 +673,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input signal_1_min_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -738,21 +697,26 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input signal_2_min_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
                   {{ is_state(signal_2_entity, 'on') and
-                     (signal_2_remaining_seconds | int(0)) > 0 }}
+                     is_state(limodor_switch, 'on') }}
             then:
               - wait_for_trigger:
                   - trigger: state
                     entity_id: !input signal_2_entity
                     to: "off"
-                timeout:
-                  seconds: "{{ signal_2_remaining_seconds | int(0) }}"
-                continue_on_timeout: true
+                  - trigger: state
+                    entity_id: !input limodor_switch
+                    to: "off"
           - if:
               - condition: template
                 value_template: >-
@@ -770,8 +734,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input signal_2_min_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -789,21 +758,26 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input signal_3_min_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
                   {{ is_state(signal_3_entity, 'on') and
-                     (signal_3_remaining_seconds | int(0)) > 0 }}
+                     is_state(limodor_switch, 'on') }}
             then:
               - wait_for_trigger:
                   - trigger: state
                     entity_id: !input signal_3_entity
                     to: "off"
-                timeout:
-                  seconds: "{{ signal_3_remaining_seconds | int(0) }}"
-                continue_on_timeout: true
+                  - trigger: state
+                    entity_id: !input limodor_switch
+                    to: "off"
           - if:
               - condition: template
                 value_template: >-
@@ -821,8 +795,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input signal_3_min_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -848,8 +827,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input schedule_1_duration_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -875,8 +859,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input schedule_2_duration_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -902,8 +891,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input schedule_3_duration_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -954,8 +948,13 @@ actions:
           - action: switch.turn_on
             target:
               entity_id: !input limodor_switch
-          - delay:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input limodor_switch
+                to: "off"
+            timeout:
               minutes: !input humidity_duration_minutes
+            continue_on_timeout: true
           - if:
               - condition: template
                 value_template: >-
@@ -965,10 +964,11 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Home Assistant started
+      - alias: Home Assistant started or automations reloaded
         conditions:
-          - condition: trigger
-            id: startup
+          - condition: template
+            value_template: >-
+              {{ trigger.id in ['startup', 'automation_reloaded'] }}
         sequence:
           - alias: Wait until the Limodor signal switch is available
             if:
@@ -1007,29 +1007,43 @@ actions:
                       {{ signal_1_entity is string and
                          not signal_1_entity.startswith('input_button.') and
                          is_state(signal_1_entity, 'on') }}
+                  - variables:
+                      signal_1_start_last_changed: >-
+                        {% set source = expand(signal_1_entity) | first %}
+                        {{ as_timestamp(source.last_changed)
+                           if source is defined else 0 }}
                   - delay:
                       seconds: !input signal_1_delay_seconds
-                  - condition: state
-                    entity_id: !input signal_1_entity
-                    state: "on"
+                  - condition: template
+                    value_template: >-
+                      {% set source = expand(signal_1_entity) | first %}
+                      {{ source is defined and
+                         source.state == 'on' and
+                         (as_timestamp(source.last_changed) | float(0)) ==
+                           (signal_1_start_last_changed | float(0)) }}
                   - action: switch.turn_on
                     target:
                       entity_id: !input limodor_switch
-                  - delay:
+                  - wait_for_trigger:
+                      - trigger: state
+                        entity_id: !input limodor_switch
+                        to: "off"
+                    timeout:
                       minutes: !input signal_1_min_minutes
+                    continue_on_timeout: true
                   - if:
                       - condition: template
                         value_template: >-
                           {{ is_state(signal_1_entity, 'on') and
-                             (signal_1_remaining_seconds | int(0)) > 0 }}
+                             is_state(limodor_switch, 'on') }}
                     then:
                       - wait_for_trigger:
                           - trigger: state
                             entity_id: !input signal_1_entity
                             to: "off"
-                        timeout:
-                          seconds: "{{ signal_1_remaining_seconds | int(0) }}"
-                        continue_on_timeout: true
+                          - trigger: state
+                            entity_id: !input limodor_switch
+                            to: "off"
 
               - sequence:
                   - condition: template
@@ -1037,29 +1051,43 @@ actions:
                       {{ signal_2_entity is string and
                          not signal_2_entity.startswith('input_button.') and
                          is_state(signal_2_entity, 'on') }}
+                  - variables:
+                      signal_2_start_last_changed: >-
+                        {% set source = expand(signal_2_entity) | first %}
+                        {{ as_timestamp(source.last_changed)
+                           if source is defined else 0 }}
                   - delay:
                       seconds: !input signal_2_delay_seconds
-                  - condition: state
-                    entity_id: !input signal_2_entity
-                    state: "on"
+                  - condition: template
+                    value_template: >-
+                      {% set source = expand(signal_2_entity) | first %}
+                      {{ source is defined and
+                         source.state == 'on' and
+                         (as_timestamp(source.last_changed) | float(0)) ==
+                           (signal_2_start_last_changed | float(0)) }}
                   - action: switch.turn_on
                     target:
                       entity_id: !input limodor_switch
-                  - delay:
+                  - wait_for_trigger:
+                      - trigger: state
+                        entity_id: !input limodor_switch
+                        to: "off"
+                    timeout:
                       minutes: !input signal_2_min_minutes
+                    continue_on_timeout: true
                   - if:
                       - condition: template
                         value_template: >-
                           {{ is_state(signal_2_entity, 'on') and
-                             (signal_2_remaining_seconds | int(0)) > 0 }}
+                             is_state(limodor_switch, 'on') }}
                     then:
                       - wait_for_trigger:
                           - trigger: state
                             entity_id: !input signal_2_entity
                             to: "off"
-                        timeout:
-                          seconds: "{{ signal_2_remaining_seconds | int(0) }}"
-                        continue_on_timeout: true
+                          - trigger: state
+                            entity_id: !input limodor_switch
+                            to: "off"
 
               - sequence:
                   - condition: template
@@ -1067,29 +1095,43 @@ actions:
                       {{ signal_3_entity is string and
                          not signal_3_entity.startswith('input_button.') and
                          is_state(signal_3_entity, 'on') }}
+                  - variables:
+                      signal_3_start_last_changed: >-
+                        {% set source = expand(signal_3_entity) | first %}
+                        {{ as_timestamp(source.last_changed)
+                           if source is defined else 0 }}
                   - delay:
                       seconds: !input signal_3_delay_seconds
-                  - condition: state
-                    entity_id: !input signal_3_entity
-                    state: "on"
+                  - condition: template
+                    value_template: >-
+                      {% set source = expand(signal_3_entity) | first %}
+                      {{ source is defined and
+                         source.state == 'on' and
+                         (as_timestamp(source.last_changed) | float(0)) ==
+                           (signal_3_start_last_changed | float(0)) }}
                   - action: switch.turn_on
                     target:
                       entity_id: !input limodor_switch
-                  - delay:
+                  - wait_for_trigger:
+                      - trigger: state
+                        entity_id: !input limodor_switch
+                        to: "off"
+                    timeout:
                       minutes: !input signal_3_min_minutes
+                    continue_on_timeout: true
                   - if:
                       - condition: template
                         value_template: >-
                           {{ is_state(signal_3_entity, 'on') and
-                             (signal_3_remaining_seconds | int(0)) > 0 }}
+                             is_state(limodor_switch, 'on') }}
                     then:
                       - wait_for_trigger:
                           - trigger: state
                             entity_id: !input signal_3_entity
                             to: "off"
-                        timeout:
-                          seconds: "{{ signal_3_remaining_seconds | int(0) }}"
-                        continue_on_timeout: true
+                          - trigger: state
+                            entity_id: !input limodor_switch
+                            to: "off"
 
               - sequence:
                   - condition: template
@@ -1108,8 +1150,13 @@ actions:
                   - action: switch.turn_on
                     target:
                       entity_id: !input limodor_switch
-                  - delay:
+                  - wait_for_trigger:
+                      - trigger: state
+                        entity_id: !input limodor_switch
+                        to: "off"
+                    timeout:
                       minutes: !input humidity_duration_minutes
+                    continue_on_timeout: true
 
           - if:
               - condition: template
