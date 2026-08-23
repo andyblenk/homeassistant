@@ -30,6 +30,21 @@ blueprint:
             entity:
               filter:
                 - domain: switch
+        global_max_signal_minutes:
+          name: Global safety timeout
+          description: >-
+            Maximum uninterrupted on-time of the Limodor signal line. When this
+            limit is reached, the output is switched off regardless of active or
+            overlapping requests. The Limodor's internal run-on time starts
+            afterward as usual.
+          default: 120
+          selector:
+            number:
+              min: 1
+              max: 720
+              step: 1
+              unit_of_measurement: min
+              mode: box
 
     signal_1:
       name: Signal source 1
@@ -601,12 +616,26 @@ triggers:
     enabled: !input humidity_enabled
     id: humidity_rise
 
+  - trigger: state
+    entity_id: !input limodor_switch
+    to: "on"
+    for:
+      minutes: !input global_max_signal_minutes
+    id: global_safety_timeout
+
+  - trigger: time_pattern
+    minutes: "/1"
+    id: global_safety_watchdog
+
   - trigger: homeassistant
     event: start
     id: startup
 
 variables:
   limodor_switch: !input limodor_switch
+  global_max_signal_minutes: !input global_max_signal_minutes
+  global_max_signal_seconds: >-
+    {{ ((global_max_signal_minutes | float(0)) * 60) | int(0) }}
 
   signal_1_entity: !input signal_1_entity
   signal_1_min_minutes: !input signal_1_min_minutes
@@ -884,6 +913,23 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
+      - alias: Global safety timeout
+        conditions:
+          - condition: template
+            value_template: >-
+              {% set output = expand(limodor_switch) | first %}
+              {{ trigger.id == 'global_safety_timeout' or
+                 (trigger.id == 'global_safety_watchdog' and
+                  output is defined and
+                  output.state == 'on' and
+                  (as_timestamp(now()) - as_timestamp(output.last_changed)) >=
+                    (global_max_signal_seconds | float(0))) }}
+        sequence:
+          - alias: Force the signal line off
+            action: switch.turn_off
+            target:
+              entity_id: !input limodor_switch
+
       - alias: Humidity increase
         conditions:
           - condition: trigger
@@ -924,6 +970,20 @@ actions:
           - condition: trigger
             id: startup
         sequence:
+          - alias: Wait until the Limodor signal switch is available
+            if:
+              - condition: template
+                value_template: >-
+                  {{ states(limodor_switch) in ['unknown', 'unavailable'] }}
+            then:
+              - wait_for_trigger:
+                  - trigger: state
+                    entity_id: !input limodor_switch
+                    to: "on"
+                  - trigger: state
+                    entity_id: !input limodor_switch
+                    to: "off"
+
           - alias: Switch off output before deterministic reevaluation
             action: switch.turn_off
             target:
@@ -1068,7 +1128,8 @@ actions:
   - if:
       - condition: template
         value_template: >-
-          {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+          {{ state_attr(this.entity_id, 'current') | int(0) <= 1 and
+             is_state(limodor_switch, 'on') }}
     then:
       - action: switch.turn_off
         target:
