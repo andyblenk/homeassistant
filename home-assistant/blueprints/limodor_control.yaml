@@ -1,0 +1,1052 @@
+blueprint:
+  name: Limodor-Steuerung
+  description: >-
+    Steuert das Signal eines Limodor-Luefters ueber bis zu drei zustandsbasierte
+    Signalgeber oder Input-Buttons, drei taegliche Zeitplaene und einen optionalen
+    Luftfeuchtigkeitssensor.
+
+    Der interne Nachlauf des Limodors ist nicht Bestandteil der angegebenen
+    Laufzeiten. Alle Laufzeiten beziehen sich ausschliesslich auf das geschaltete
+    Signal. Ueberlappende Anforderungen werden parallel verarbeitet; das Signal
+    wird erst ausgeschaltet, wenn die letzte Anforderung beendet ist.
+
+    Fuer die Feuchtigkeits-Pruefpause wird ein eigener Timer-Helfer benoetigt.
+  domain: automation
+  author: Andreas / Codex
+  homeassistant:
+    min_version: 2024.10.0
+
+  input:
+    basic:
+      name: Grundkonfiguration
+      icon: mdi:fan
+      input:
+        limodor_switch:
+          name: Limodor-Signalschalter
+          description: >-
+            Schaltet ausschliesslich die Signalleitung. Der Dauerstrom wird von
+            diesem Blueprint nicht gesteuert.
+          selector:
+            entity:
+              filter:
+                - domain: switch
+
+    signal_1:
+      name: Signalgeber 1
+      icon: mdi:numeric-1-circle
+      collapsed: true
+      input:
+        signal_1_entity:
+          name: Entity
+          description: >-
+            Licht, Schalter, Binary Sensor, Input Boolean oder Input Button.
+            Leer lassen, um diesen Signalgeber zu deaktivieren.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: light
+                - domain: switch
+                - domain: binary_sensor
+                - domain: input_boolean
+                - domain: input_button
+        signal_1_delay_seconds:
+          name: Vorlaufzeit
+          description: >-
+            Bei On/Off-Entities muss die Entity waehrend der gesamten Vorlaufzeit
+            eingeschaltet bleiben. Bei einem Input Button ist dies eine einfache
+            Verzoegerung nach dem Tastendruck.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 600
+              step: 1
+              unit_of_measurement: s
+              mode: box
+        signal_1_min_minutes:
+          name: Mindest-Signallaufzeit
+          description: >-
+            Das Limodor-Signal bleibt nach dem Start mindestens so lange aktiv.
+            Bei einem Input Button ist dies die komplette Signallaufzeit.
+          default: 1
+          selector:
+            number:
+              min: 0.1
+              max: 240
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        signal_1_max_minutes:
+          name: Maximale Signallaufzeit
+          description: >-
+            Sicherheitsgrenze, solange eine On/Off-Entity eingeschaltet bleibt.
+            Muss groesser oder gleich der Mindest-Signallaufzeit sein. Fuer Input
+            Buttons wird dieser Wert nicht verwendet.
+          default: 60
+          selector:
+            number:
+              min: 0.1
+              max: 480
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+
+    signal_2:
+      name: Signalgeber 2
+      icon: mdi:numeric-2-circle
+      collapsed: true
+      input:
+        signal_2_entity:
+          name: Entity
+          description: >-
+            Licht, Schalter, Binary Sensor, Input Boolean oder Input Button.
+            Leer lassen, um diesen Signalgeber zu deaktivieren.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: light
+                - domain: switch
+                - domain: binary_sensor
+                - domain: input_boolean
+                - domain: input_button
+        signal_2_delay_seconds:
+          name: Vorlaufzeit
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 600
+              step: 1
+              unit_of_measurement: s
+              mode: box
+        signal_2_min_minutes:
+          name: Mindest-Signallaufzeit
+          default: 1
+          selector:
+            number:
+              min: 0.1
+              max: 240
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        signal_2_max_minutes:
+          name: Maximale Signallaufzeit
+          description: >-
+            Muss groesser oder gleich der Mindest-Signallaufzeit sein. Fuer Input
+            Buttons wird dieser Wert nicht verwendet.
+          default: 60
+          selector:
+            number:
+              min: 0.1
+              max: 480
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+
+    signal_3:
+      name: Signalgeber 3
+      icon: mdi:numeric-3-circle
+      collapsed: true
+      input:
+        signal_3_entity:
+          name: Entity
+          description: >-
+            Licht, Schalter, Binary Sensor, Input Boolean oder Input Button.
+            Leer lassen, um diesen Signalgeber zu deaktivieren.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: light
+                - domain: switch
+                - domain: binary_sensor
+                - domain: input_boolean
+                - domain: input_button
+        signal_3_delay_seconds:
+          name: Vorlaufzeit
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 600
+              step: 1
+              unit_of_measurement: s
+              mode: box
+        signal_3_min_minutes:
+          name: Mindest-Signallaufzeit
+          default: 1
+          selector:
+            number:
+              min: 0.1
+              max: 240
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        signal_3_max_minutes:
+          name: Maximale Signallaufzeit
+          description: >-
+            Muss groesser oder gleich der Mindest-Signallaufzeit sein. Fuer Input
+            Buttons wird dieser Wert nicht verwendet.
+          default: 60
+          selector:
+            number:
+              min: 0.1
+              max: 480
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+
+    schedule_1:
+      name: Zeitplan 1
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        schedule_1_enabled:
+          name: Aktiviert
+          default: false
+          selector:
+            boolean:
+        schedule_1_time:
+          name: Startzeit
+          default: "08:00:00"
+          selector:
+            time:
+        schedule_1_weekdays:
+          name: Wochentage
+          default:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Montag
+                  value: mon
+                - label: Dienstag
+                  value: tue
+                - label: Mittwoch
+                  value: wed
+                - label: Donnerstag
+                  value: thu
+                - label: Freitag
+                  value: fri
+                - label: Samstag
+                  value: sat
+                - label: Sonntag
+                  value: sun
+        schedule_1_duration_minutes:
+          name: Signallaufzeit
+          default: 1
+          selector:
+            number:
+              min: 0.1
+              max: 480
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        schedule_1_condition_entity:
+          name: Optionale Boolean-Bedingung
+          description: >-
+            Wird nur beim Start geprueft. Leer bedeutet keine Bedingung.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: binary_sensor
+                - domain: input_boolean
+                - domain: switch
+                - domain: light
+        schedule_1_condition_state:
+          name: Erforderlicher Zustand
+          default: "on"
+          selector:
+            select:
+              options:
+                - label: An
+                  value: "on"
+                - label: Aus
+                  value: "off"
+
+    schedule_2:
+      name: Zeitplan 2
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        schedule_2_enabled:
+          name: Aktiviert
+          default: false
+          selector:
+            boolean:
+        schedule_2_time:
+          name: Startzeit
+          default: "12:00:00"
+          selector:
+            time:
+        schedule_2_weekdays:
+          name: Wochentage
+          default:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Montag
+                  value: mon
+                - label: Dienstag
+                  value: tue
+                - label: Mittwoch
+                  value: wed
+                - label: Donnerstag
+                  value: thu
+                - label: Freitag
+                  value: fri
+                - label: Samstag
+                  value: sat
+                - label: Sonntag
+                  value: sun
+        schedule_2_duration_minutes:
+          name: Signallaufzeit
+          default: 1
+          selector:
+            number:
+              min: 0.1
+              max: 480
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        schedule_2_condition_entity:
+          name: Optionale Boolean-Bedingung
+          description: Wird nur beim Start geprueft. Leer bedeutet keine Bedingung.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: binary_sensor
+                - domain: input_boolean
+                - domain: switch
+                - domain: light
+        schedule_2_condition_state:
+          name: Erforderlicher Zustand
+          default: "on"
+          selector:
+            select:
+              options:
+                - label: An
+                  value: "on"
+                - label: Aus
+                  value: "off"
+
+    schedule_3:
+      name: Zeitplan 3
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        schedule_3_enabled:
+          name: Aktiviert
+          default: false
+          selector:
+            boolean:
+        schedule_3_time:
+          name: Startzeit
+          default: "18:00:00"
+          selector:
+            time:
+        schedule_3_weekdays:
+          name: Wochentage
+          default:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Montag
+                  value: mon
+                - label: Dienstag
+                  value: tue
+                - label: Mittwoch
+                  value: wed
+                - label: Donnerstag
+                  value: thu
+                - label: Freitag
+                  value: fri
+                - label: Samstag
+                  value: sat
+                - label: Sonntag
+                  value: sun
+        schedule_3_duration_minutes:
+          name: Signallaufzeit
+          default: 1
+          selector:
+            number:
+              min: 0.1
+              max: 480
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        schedule_3_condition_entity:
+          name: Optionale Boolean-Bedingung
+          description: Wird nur beim Start geprueft. Leer bedeutet keine Bedingung.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: binary_sensor
+                - domain: input_boolean
+                - domain: switch
+                - domain: light
+        schedule_3_condition_state:
+          name: Erforderlicher Zustand
+          default: "on"
+          selector:
+            select:
+              options:
+                - label: An
+                  value: "on"
+                - label: Aus
+                  value: "off"
+
+    humidity:
+      name: Luftfeuchtigkeit
+      icon: mdi:water-percent
+      collapsed: true
+      input:
+        humidity_enabled:
+          name: Aktiviert
+          default: false
+          selector:
+            boolean:
+        humidity_sensor:
+          name: Luftfeuchtigkeitssensor
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: humidity
+        humidity_threshold:
+          name: Einschaltschwelle
+          description: >-
+            Gestartet wird bei jedem numerischen Anstieg, dessen neuer Wert ueber
+            dieser Schwelle liegt.
+          default: 65
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+        humidity_duration_minutes:
+          name: Signallaufzeit
+          description: Feste Signallaufzeit je ausgeloestem Feuchtigkeitszyklus.
+          default: 10
+          selector:
+            number:
+              min: 0.1
+              max: 240
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        humidity_pause_minutes:
+          name: Pruef-Pause
+          description: >-
+            Waehrend der Laufzeit und dieser anschliessenden Pause werden weitere
+            Feuchtigkeitsanstiege ignoriert. Danach ist der naechste Anstieg ueber
+            der Schwelle wieder startberechtigt.
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 240
+              step: 0.1
+              unit_of_measurement: min
+              mode: box
+        humidity_cooldown_timer:
+          name: Timer-Helfer fuer Feuchtigkeitszyklus
+          description: >-
+            Eigener Timer-Helfer nur fuer diesen Blueprint. Seine konfigurierte
+            Standarddauer ist egal; der Blueprint setzt sie dynamisch.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: timer
+
+trigger_variables:
+  signal_1_trigger_entity: !input signal_1_entity
+  signal_2_trigger_entity: !input signal_2_entity
+  signal_3_trigger_entity: !input signal_3_entity
+
+triggers:
+  - trigger: state
+    entity_id: !input signal_1_entity
+    to: "on"
+    for:
+      seconds: !input signal_1_delay_seconds
+    enabled: >-
+      {{ signal_1_trigger_entity is string and
+         not signal_1_trigger_entity.startswith('input_button.') }}
+    id: signal_1_on
+
+  - trigger: state
+    entity_id: !input signal_1_entity
+    for:
+      seconds: !input signal_1_delay_seconds
+    enabled: >-
+      {{ signal_1_trigger_entity is string and
+         signal_1_trigger_entity.startswith('input_button.') }}
+    id: signal_1_button
+
+  - trigger: state
+    entity_id: !input signal_2_entity
+    to: "on"
+    for:
+      seconds: !input signal_2_delay_seconds
+    enabled: >-
+      {{ signal_2_trigger_entity is string and
+         not signal_2_trigger_entity.startswith('input_button.') }}
+    id: signal_2_on
+
+  - trigger: state
+    entity_id: !input signal_2_entity
+    for:
+      seconds: !input signal_2_delay_seconds
+    enabled: >-
+      {{ signal_2_trigger_entity is string and
+         signal_2_trigger_entity.startswith('input_button.') }}
+    id: signal_2_button
+
+  - trigger: state
+    entity_id: !input signal_3_entity
+    to: "on"
+    for:
+      seconds: !input signal_3_delay_seconds
+    enabled: >-
+      {{ signal_3_trigger_entity is string and
+         not signal_3_trigger_entity.startswith('input_button.') }}
+    id: signal_3_on
+
+  - trigger: state
+    entity_id: !input signal_3_entity
+    for:
+      seconds: !input signal_3_delay_seconds
+    enabled: >-
+      {{ signal_3_trigger_entity is string and
+         signal_3_trigger_entity.startswith('input_button.') }}
+    id: signal_3_button
+
+  - trigger: time
+    at: !input schedule_1_time
+    enabled: !input schedule_1_enabled
+    id: schedule_1
+
+  - trigger: time
+    at: !input schedule_2_time
+    enabled: !input schedule_2_enabled
+    id: schedule_2
+
+  - trigger: time
+    at: !input schedule_3_time
+    enabled: !input schedule_3_enabled
+    id: schedule_3
+
+  - trigger: state
+    entity_id: !input humidity_sensor
+    enabled: !input humidity_enabled
+    id: humidity_rise
+
+  - trigger: homeassistant
+    event: start
+    id: startup
+
+variables:
+  limodor_switch: !input limodor_switch
+
+  signal_1_entity: !input signal_1_entity
+  signal_1_min_minutes: !input signal_1_min_minutes
+  signal_1_max_minutes: !input signal_1_max_minutes
+  signal_1_remaining_seconds: >-
+    {{ [((((signal_1_max_minutes | float(0)) -
+            (signal_1_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
+
+  signal_2_entity: !input signal_2_entity
+  signal_2_min_minutes: !input signal_2_min_minutes
+  signal_2_max_minutes: !input signal_2_max_minutes
+  signal_2_remaining_seconds: >-
+    {{ [((((signal_2_max_minutes | float(0)) -
+            (signal_2_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
+
+  signal_3_entity: !input signal_3_entity
+  signal_3_min_minutes: !input signal_3_min_minutes
+  signal_3_max_minutes: !input signal_3_max_minutes
+  signal_3_remaining_seconds: >-
+    {{ [((((signal_3_max_minutes | float(0)) -
+            (signal_3_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
+
+  schedule_1_condition_entity: !input schedule_1_condition_entity
+  schedule_1_condition_state: !input schedule_1_condition_state
+  schedule_2_condition_entity: !input schedule_2_condition_entity
+  schedule_2_condition_state: !input schedule_2_condition_state
+  schedule_3_condition_entity: !input schedule_3_condition_entity
+  schedule_3_condition_state: !input schedule_3_condition_state
+
+  humidity_enabled: !input humidity_enabled
+  humidity_sensor: !input humidity_sensor
+  humidity_threshold: !input humidity_threshold
+  humidity_duration_minutes: !input humidity_duration_minutes
+  humidity_pause_minutes: !input humidity_pause_minutes
+  humidity_cooldown_timer: !input humidity_cooldown_timer
+  humidity_block_seconds: >-
+    {{ (((humidity_duration_minutes | float(0)) +
+         (humidity_pause_minutes | float(0))) * 60) | int(0) }}
+
+conditions: []
+
+actions:
+  - choose:
+      - alias: Signalgeber 1 wurde eingeschaltet
+        conditions:
+          - condition: trigger
+            id: signal_1_on
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input signal_1_min_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ is_state(signal_1_entity, 'on') and
+                     (signal_1_remaining_seconds | int(0)) > 0 }}
+            then:
+              - wait_for_trigger:
+                  - trigger: state
+                    entity_id: !input signal_1_entity
+                    to: "off"
+                timeout:
+                  seconds: "{{ signal_1_remaining_seconds | int(0) }}"
+                continue_on_timeout: true
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Input Button 1 wurde gedrueckt
+        conditions:
+          - condition: trigger
+            id: signal_1_button
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input signal_1_min_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Signalgeber 2 wurde eingeschaltet
+        conditions:
+          - condition: trigger
+            id: signal_2_on
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input signal_2_min_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ is_state(signal_2_entity, 'on') and
+                     (signal_2_remaining_seconds | int(0)) > 0 }}
+            then:
+              - wait_for_trigger:
+                  - trigger: state
+                    entity_id: !input signal_2_entity
+                    to: "off"
+                timeout:
+                  seconds: "{{ signal_2_remaining_seconds | int(0) }}"
+                continue_on_timeout: true
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Input Button 2 wurde gedrueckt
+        conditions:
+          - condition: trigger
+            id: signal_2_button
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input signal_2_min_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Signalgeber 3 wurde eingeschaltet
+        conditions:
+          - condition: trigger
+            id: signal_3_on
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input signal_3_min_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ is_state(signal_3_entity, 'on') and
+                     (signal_3_remaining_seconds | int(0)) > 0 }}
+            then:
+              - wait_for_trigger:
+                  - trigger: state
+                    entity_id: !input signal_3_entity
+                    to: "off"
+                timeout:
+                  seconds: "{{ signal_3_remaining_seconds | int(0) }}"
+                continue_on_timeout: true
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Input Button 3 wurde gedrueckt
+        conditions:
+          - condition: trigger
+            id: signal_3_button
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input signal_3_min_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Zeitplan 1
+        conditions:
+          - condition: trigger
+            id: schedule_1
+          - condition: time
+            weekday: !input schedule_1_weekdays
+          - condition: template
+            value_template: >-
+              {{ schedule_1_condition_entity == [] or
+                 schedule_1_condition_entity == '' or
+                 is_state(schedule_1_condition_entity,
+                          schedule_1_condition_state) }}
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input schedule_1_duration_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Zeitplan 2
+        conditions:
+          - condition: trigger
+            id: schedule_2
+          - condition: time
+            weekday: !input schedule_2_weekdays
+          - condition: template
+            value_template: >-
+              {{ schedule_2_condition_entity == [] or
+                 schedule_2_condition_entity == '' or
+                 is_state(schedule_2_condition_entity,
+                          schedule_2_condition_state) }}
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input schedule_2_duration_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Zeitplan 3
+        conditions:
+          - condition: trigger
+            id: schedule_3
+          - condition: time
+            weekday: !input schedule_3_weekdays
+          - condition: template
+            value_template: >-
+              {{ schedule_3_condition_entity == [] or
+                 schedule_3_condition_entity == '' or
+                 is_state(schedule_3_condition_entity,
+                          schedule_3_condition_state) }}
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input schedule_3_duration_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Anstieg der Luftfeuchtigkeit
+        conditions:
+          - condition: trigger
+            id: humidity_rise
+          - condition: template
+            value_template: >-
+              {{ trigger.from_state is not none and
+                 trigger.to_state is not none and
+                 is_number(trigger.from_state.state) and
+                 is_number(trigger.to_state.state) and
+                 (trigger.to_state.state | float(0)) >
+                   (trigger.from_state.state | float(0)) and
+                 (trigger.to_state.state | float(0)) >
+                   (humidity_threshold | float(0)) and
+                 is_state(humidity_cooldown_timer, 'idle') }}
+        sequence:
+          - action: timer.start
+            target:
+              entity_id: !input humidity_cooldown_timer
+            data:
+              duration: "{{ humidity_block_seconds | int(0) }}"
+          - action: switch.turn_on
+            target:
+              entity_id: !input limodor_switch
+          - delay:
+              minutes: !input humidity_duration_minutes
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+      - alias: Home Assistant wurde gestartet
+        conditions:
+          - condition: trigger
+            id: startup
+        sequence:
+          - alias: Ausgang fuer eine definierte Neubewertung ausschalten
+            action: switch.turn_off
+            target:
+              entity_id: !input limodor_switch
+
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ humidity_enabled and
+                     humidity_cooldown_timer is string and
+                     humidity_cooldown_timer != '' }}
+            then:
+              - action: timer.cancel
+                target:
+                  entity_id: !input humidity_cooldown_timer
+
+          - parallel:
+              - sequence:
+                  - condition: template
+                    value_template: >-
+                      {{ signal_1_entity is string and
+                         not signal_1_entity.startswith('input_button.') and
+                         is_state(signal_1_entity, 'on') }}
+                  - delay:
+                      seconds: !input signal_1_delay_seconds
+                  - condition: state
+                    entity_id: !input signal_1_entity
+                    state: "on"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: !input limodor_switch
+                  - delay:
+                      minutes: !input signal_1_min_minutes
+                  - if:
+                      - condition: template
+                        value_template: >-
+                          {{ is_state(signal_1_entity, 'on') and
+                             (signal_1_remaining_seconds | int(0)) > 0 }}
+                    then:
+                      - wait_for_trigger:
+                          - trigger: state
+                            entity_id: !input signal_1_entity
+                            to: "off"
+                        timeout:
+                          seconds: "{{ signal_1_remaining_seconds | int(0) }}"
+                        continue_on_timeout: true
+
+              - sequence:
+                  - condition: template
+                    value_template: >-
+                      {{ signal_2_entity is string and
+                         not signal_2_entity.startswith('input_button.') and
+                         is_state(signal_2_entity, 'on') }}
+                  - delay:
+                      seconds: !input signal_2_delay_seconds
+                  - condition: state
+                    entity_id: !input signal_2_entity
+                    state: "on"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: !input limodor_switch
+                  - delay:
+                      minutes: !input signal_2_min_minutes
+                  - if:
+                      - condition: template
+                        value_template: >-
+                          {{ is_state(signal_2_entity, 'on') and
+                             (signal_2_remaining_seconds | int(0)) > 0 }}
+                    then:
+                      - wait_for_trigger:
+                          - trigger: state
+                            entity_id: !input signal_2_entity
+                            to: "off"
+                        timeout:
+                          seconds: "{{ signal_2_remaining_seconds | int(0) }}"
+                        continue_on_timeout: true
+
+              - sequence:
+                  - condition: template
+                    value_template: >-
+                      {{ signal_3_entity is string and
+                         not signal_3_entity.startswith('input_button.') and
+                         is_state(signal_3_entity, 'on') }}
+                  - delay:
+                      seconds: !input signal_3_delay_seconds
+                  - condition: state
+                    entity_id: !input signal_3_entity
+                    state: "on"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: !input limodor_switch
+                  - delay:
+                      minutes: !input signal_3_min_minutes
+                  - if:
+                      - condition: template
+                        value_template: >-
+                          {{ is_state(signal_3_entity, 'on') and
+                             (signal_3_remaining_seconds | int(0)) > 0 }}
+                    then:
+                      - wait_for_trigger:
+                          - trigger: state
+                            entity_id: !input signal_3_entity
+                            to: "off"
+                        timeout:
+                          seconds: "{{ signal_3_remaining_seconds | int(0) }}"
+                        continue_on_timeout: true
+
+              - sequence:
+                  - condition: template
+                    value_template: >-
+                      {{ humidity_enabled and
+                         humidity_sensor is string and
+                         humidity_cooldown_timer is string and
+                         is_number(states(humidity_sensor)) and
+                         (states(humidity_sensor) | float(0)) >
+                           (humidity_threshold | float(0)) }}
+                  - action: timer.start
+                    target:
+                      entity_id: !input humidity_cooldown_timer
+                    data:
+                      duration: "{{ humidity_block_seconds | int(0) }}"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: !input limodor_switch
+                  - delay:
+                      minutes: !input humidity_duration_minutes
+
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input limodor_switch
+
+  # Gemeinsamer Abschluss auch fuer verworfene Trigger. Die kurze Verzoegerung
+  # sorgt dafuer, dass bei gleichzeitig endenden parallelen Laeufen genau der
+  # zuletzt verbleibende Lauf das Signal ausschaltet.
+  - delay:
+      milliseconds: 50
+  - if:
+      - condition: template
+        value_template: >-
+          {{ state_attr(this.entity_id, 'current') | int(0) <= 1 }}
+    then:
+      - action: switch.turn_off
+        target:
+          entity_id: !input limodor_switch
+
+mode: parallel
+max: 50
+max_exceeded: silent
