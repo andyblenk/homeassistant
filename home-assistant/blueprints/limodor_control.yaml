@@ -298,10 +298,8 @@ blueprint:
           selector:
             select:
               options:
-                - label: "On"
-                  value: "on"
-                - label: "Off"
-                  value: "off"
+                - "on"
+                - "off"
 
     schedule_2:
       name: Schedule 2
@@ -373,10 +371,8 @@ blueprint:
           selector:
             select:
               options:
-                - label: "On"
-                  value: "on"
-                - label: "Off"
-                  value: "off"
+                - "on"
+                - "off"
 
     schedule_3:
       name: Schedule 3
@@ -448,10 +444,8 @@ blueprint:
           selector:
             select:
               options:
-                - label: "On"
-                  value: "on"
-                - label: "Off"
-                  value: "off"
+                - "on"
+                - "off"
 
     humidity:
       name: Humidity
