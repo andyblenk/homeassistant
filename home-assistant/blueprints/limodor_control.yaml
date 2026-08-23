@@ -292,14 +292,14 @@ blueprint:
                 - domain: input_boolean
                 - domain: switch
                 - domain: light
-        schedule_1_condition_state:
-          name: Required state
-          default: "on"
+        schedule_1_condition_required_on:
+          name: Condition must be on
+          description: >-
+            Enabled means the condition entity must be on. Disabled means it must
+            be off.
+          default: true
           selector:
-            select:
-              options:
-                - "on"
-                - "off"
+            boolean:
 
     schedule_2:
       name: Schedule 2
@@ -365,14 +365,14 @@ blueprint:
                 - domain: input_boolean
                 - domain: switch
                 - domain: light
-        schedule_2_condition_state:
-          name: Required state
-          default: "on"
+        schedule_2_condition_required_on:
+          name: Condition must be on
+          description: >-
+            Enabled means the condition entity must be on. Disabled means it must
+            be off.
+          default: true
           selector:
-            select:
-              options:
-                - "on"
-                - "off"
+            boolean:
 
     schedule_3:
       name: Schedule 3
@@ -438,14 +438,14 @@ blueprint:
                 - domain: input_boolean
                 - domain: switch
                 - domain: light
-        schedule_3_condition_state:
-          name: Required state
-          default: "on"
+        schedule_3_condition_required_on:
+          name: Condition must be on
+          description: >-
+            Enabled means the condition entity must be on. Disabled means it must
+            be off.
+          default: true
           selector:
-            select:
-              options:
-                - "on"
-                - "off"
+            boolean:
 
     humidity:
       name: Humidity
@@ -627,11 +627,11 @@ variables:
             (signal_3_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
 
   schedule_1_condition_entity: !input schedule_1_condition_entity
-  schedule_1_condition_state: !input schedule_1_condition_state
+  schedule_1_condition_required_on: !input schedule_1_condition_required_on
   schedule_2_condition_entity: !input schedule_2_condition_entity
-  schedule_2_condition_state: !input schedule_2_condition_state
+  schedule_2_condition_required_on: !input schedule_2_condition_required_on
   schedule_3_condition_entity: !input schedule_3_condition_entity
-  schedule_3_condition_state: !input schedule_3_condition_state
+  schedule_3_condition_required_on: !input schedule_3_condition_required_on
 
   humidity_enabled: !input humidity_enabled
   humidity_sensor: !input humidity_sensor
@@ -811,7 +811,7 @@ actions:
               {{ schedule_1_condition_entity == [] or
                  schedule_1_condition_entity == '' or
                  is_state(schedule_1_condition_entity,
-                          schedule_1_condition_state) }}
+                          'on' if schedule_1_condition_required_on else 'off') }}
         sequence:
           - action: switch.turn_on
             target:
@@ -838,7 +838,7 @@ actions:
               {{ schedule_2_condition_entity == [] or
                  schedule_2_condition_entity == '' or
                  is_state(schedule_2_condition_entity,
-                          schedule_2_condition_state) }}
+                          'on' if schedule_2_condition_required_on else 'off') }}
         sequence:
           - action: switch.turn_on
             target:
@@ -865,7 +865,7 @@ actions:
               {{ schedule_3_condition_entity == [] or
                  schedule_3_condition_entity == '' or
                  is_state(schedule_3_condition_entity,
-                          schedule_3_condition_state) }}
+                          'on' if schedule_3_condition_required_on else 'off') }}
         sequence:
           - action: switch.turn_on
             target:
