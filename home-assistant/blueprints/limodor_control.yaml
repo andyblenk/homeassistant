@@ -55,8 +55,9 @@ blueprint:
           description: >-
             A value of 0 starts immediately when an On/Off entity switches on.
             Above 0, the entity must remain on for the entire delay; otherwise no
-            signal is started. For an Input Button, this is a simple delay after
-            the button press.
+            signal is started. For an Input Button, the signal starts after this
+            delay because each press creates a new timestamp state. Another press
+            before the delay expires restarts the delay.
           default: 0
           selector:
             number:
@@ -121,8 +122,9 @@ blueprint:
           description: >-
             A value of 0 starts immediately when an On/Off entity switches on.
             Above 0, the entity must remain on for the entire delay; otherwise no
-            signal is started. For an Input Button, this is a simple delay after
-            the button press.
+            signal is started. For an Input Button, the signal starts after this
+            delay because each press creates a new timestamp state. Another press
+            before the delay expires restarts the delay.
           default: 0
           selector:
             number:
@@ -186,8 +188,9 @@ blueprint:
           description: >-
             A value of 0 starts immediately when an On/Off entity switches on.
             Above 0, the entity must remain on for the entire delay; otherwise no
-            signal is started. For an Input Button, this is a simple delay after
-            the button press.
+            signal is started. For an Input Button, the signal starts after this
+            delay because each press creates a new timestamp state. Another press
+            before the delay expires restarts the delay.
           default: 0
           selector:
             number:
@@ -524,8 +527,6 @@ triggers:
   - trigger: state
     entity_id: !input signal_1_entity
     to: "on"
-    for:
-      seconds: !input signal_1_delay_seconds
     enabled: >-
       {{ signal_1_trigger_entity is string and
          not signal_1_trigger_entity.startswith('input_button.') }}
@@ -533,8 +534,6 @@ triggers:
 
   - trigger: state
     entity_id: !input signal_1_entity
-    for:
-      seconds: !input signal_1_delay_seconds
     enabled: >-
       {{ signal_1_trigger_entity is string and
          signal_1_trigger_entity.startswith('input_button.') }}
@@ -543,8 +542,6 @@ triggers:
   - trigger: state
     entity_id: !input signal_2_entity
     to: "on"
-    for:
-      seconds: !input signal_2_delay_seconds
     enabled: >-
       {{ signal_2_trigger_entity is string and
          not signal_2_trigger_entity.startswith('input_button.') }}
@@ -552,8 +549,6 @@ triggers:
 
   - trigger: state
     entity_id: !input signal_2_entity
-    for:
-      seconds: !input signal_2_delay_seconds
     enabled: >-
       {{ signal_2_trigger_entity is string and
          signal_2_trigger_entity.startswith('input_button.') }}
@@ -562,8 +557,6 @@ triggers:
   - trigger: state
     entity_id: !input signal_3_entity
     to: "on"
-    for:
-      seconds: !input signal_3_delay_seconds
     enabled: >-
       {{ signal_3_trigger_entity is string and
          not signal_3_trigger_entity.startswith('input_button.') }}
@@ -571,8 +564,6 @@ triggers:
 
   - trigger: state
     entity_id: !input signal_3_entity
-    for:
-      seconds: !input signal_3_delay_seconds
     enabled: >-
       {{ signal_3_trigger_entity is string and
          signal_3_trigger_entity.startswith('input_button.') }}
@@ -606,6 +597,7 @@ variables:
   limodor_switch: !input limodor_switch
 
   signal_1_entity: !input signal_1_entity
+  signal_1_delay_seconds: !input signal_1_delay_seconds
   signal_1_min_minutes: !input signal_1_min_minutes
   signal_1_max_minutes: !input signal_1_max_minutes
   signal_1_remaining_seconds: >-
@@ -613,6 +605,7 @@ variables:
             (signal_1_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
 
   signal_2_entity: !input signal_2_entity
+  signal_2_delay_seconds: !input signal_2_delay_seconds
   signal_2_min_minutes: !input signal_2_min_minutes
   signal_2_max_minutes: !input signal_2_max_minutes
   signal_2_remaining_seconds: >-
@@ -620,6 +613,7 @@ variables:
             (signal_2_min_minutes | float(0))) * 60) | int(0)), 0] | max }}
 
   signal_3_entity: !input signal_3_entity
+  signal_3_delay_seconds: !input signal_3_delay_seconds
   signal_3_min_minutes: !input signal_3_min_minutes
   signal_3_max_minutes: !input signal_3_max_minutes
   signal_3_remaining_seconds: >-
