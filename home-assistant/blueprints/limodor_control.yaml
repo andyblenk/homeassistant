@@ -53,8 +53,10 @@ blueprint:
         signal_1_delay_seconds:
           name: Start delay
           description: >-
-            An On/Off entity must remain on for the entire delay. For an Input
-            Button, this is a simple delay after the button press.
+            A value of 0 starts immediately when an On/Off entity switches on.
+            Above 0, the entity must remain on for the entire delay; otherwise no
+            signal is started. For an Input Button, this is a simple delay after
+            the button press.
           default: 0
           selector:
             number:
@@ -66,11 +68,12 @@ blueprint:
         signal_1_min_minutes:
           name: Minimum signal duration
           description: >-
-            After starting, the Limodor signal remains active for at least this
-            duration. After that, an On/Off entity controls the signal until it
-            switches off or the maximum duration is reached. For an Input Button,
-            this is the complete signal duration. A value of 0 produces only a
-            very short on/off pulse.
+            The signal remains on for at least this duration, even if the source
+            switches off earlier. After this minimum, an On/Off source keeps the
+            signal on until it switches off or the maximum duration is reached.
+            For an Input Button, this is the complete signal duration. Set it to 0
+            to let an On/Off source control the duration directly; an Input Button
+            then creates only a short pulse.
           default: 0
           selector:
             number:
@@ -115,6 +118,11 @@ blueprint:
                 - domain: input_button
         signal_2_delay_seconds:
           name: Start delay
+          description: >-
+            A value of 0 starts immediately when an On/Off entity switches on.
+            Above 0, the entity must remain on for the entire delay; otherwise no
+            signal is started. For an Input Button, this is a simple delay after
+            the button press.
           default: 0
           selector:
             number:
@@ -126,9 +134,12 @@ blueprint:
         signal_2_min_minutes:
           name: Minimum signal duration
           description: >-
-            After starting, the signal remains active for at least this duration.
-            A value of 0 lets an On/Off entity determine the duration directly
-            and produces a very short pulse for an Input Button.
+            The signal remains on for at least this duration, even if the source
+            switches off earlier. After this minimum, an On/Off source keeps the
+            signal on until it switches off or the maximum duration is reached.
+            For an Input Button, this is the complete signal duration. Set it to 0
+            to let an On/Off source control the duration directly; an Input Button
+            then creates only a short pulse.
           default: 0
           selector:
             number:
@@ -172,6 +183,11 @@ blueprint:
                 - domain: input_button
         signal_3_delay_seconds:
           name: Start delay
+          description: >-
+            A value of 0 starts immediately when an On/Off entity switches on.
+            Above 0, the entity must remain on for the entire delay; otherwise no
+            signal is started. For an Input Button, this is a simple delay after
+            the button press.
           default: 0
           selector:
             number:
@@ -183,9 +199,12 @@ blueprint:
         signal_3_min_minutes:
           name: Minimum signal duration
           description: >-
-            After starting, the signal remains active for at least this duration.
-            A value of 0 lets an On/Off entity determine the duration directly
-            and produces a very short pulse for an Input Button.
+            The signal remains on for at least this duration, even if the source
+            switches off earlier. After this minimum, an On/Off source keeps the
+            signal on until it switches off or the maximum duration is reached.
+            For an Input Button, this is the complete signal duration. Set it to 0
+            to let an On/Off source control the duration directly; an Input Button
+            then creates only a short pulse.
           default: 0
           selector:
             number:
@@ -493,12 +512,9 @@ blueprint:
         humidity_cooldown_timer:
           name: Humidity cycle lockout timer
           description: >-
-            A dedicated Timer helper used as memory for the humidity cycle. It
-            remains active for the configured signal duration plus the recheck
-            pause, preventing every sensor increase from starting another parallel
-            run and bypassing the pause. Do not share this timer with other
-            automations. Its configured default duration does not matter because
-            this blueprint sets the duration dynamically.
+            Manually create a dedicated Timer helper for this blueprint. It blocks
+            new humidity cycles during the signal duration and recheck pause. Its
+            configured default duration does not matter.
           default: []
           selector:
             entity:
