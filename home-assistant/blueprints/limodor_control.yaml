@@ -1,16 +1,16 @@
 blueprint:
-  name: Limodor-Steuerung
+  name: Limodor control
   description: >-
-    Steuert das Signal eines Limodor-Luefters ueber bis zu drei zustandsbasierte
-    Signalgeber oder Input-Buttons, drei taegliche Zeitplaene und einen optionalen
-    Luftfeuchtigkeitssensor.
+    Controls the signal line of a Limodor fan using up to three state-based
+    sources or Input Buttons, three daily schedules, and an optional humidity
+    sensor.
 
-    Der interne Nachlauf des Limodors ist nicht Bestandteil der angegebenen
-    Laufzeiten. Alle Laufzeiten beziehen sich ausschliesslich auf das geschaltete
-    Signal. Ueberlappende Anforderungen werden parallel verarbeitet; das Signal
-    wird erst ausgeschaltet, wenn die letzte Anforderung beendet ist.
+    The Limodor's internal run-on time is not included in any configured duration.
+    All durations apply only to the switched signal line. Overlapping requests
+    are processed in parallel; the signal is switched off only after the last
+    request has ended.
 
-    Fuer die Feuchtigkeits-Pruefpause wird ein eigener Timer-Helfer benoetigt.
+    A dedicated Timer helper is required for the humidity cycle lockout.
   domain: automation
   author: Andreas / Codex
   homeassistant:
@@ -18,29 +18,29 @@ blueprint:
 
   input:
     basic:
-      name: Grundkonfiguration
+      name: Basic configuration
       icon: mdi:fan
       input:
         limodor_switch:
-          name: Limodor-Signalschalter
+          name: Limodor signal switch
           description: >-
-            Schaltet ausschliesslich die Signalleitung. Der Dauerstrom wird von
-            diesem Blueprint nicht gesteuert.
+            Controls only the signal line. The permanent power supply is not
+            controlled by this blueprint.
           selector:
             entity:
               filter:
                 - domain: switch
 
     signal_1:
-      name: Signalgeber 1
+      name: Signal source 1
       icon: mdi:numeric-1-circle
       collapsed: true
       input:
         signal_1_entity:
           name: Entity
           description: >-
-            Licht, Schalter, Binary Sensor, Input Boolean oder Input Button.
-            Leer lassen, um diesen Signalgeber zu deaktivieren.
+            Light, switch, binary sensor, Input Boolean, or Input Button.
+            Leave empty to disable this signal source.
           default: []
           selector:
             entity:
@@ -51,11 +51,10 @@ blueprint:
                 - domain: input_boolean
                 - domain: input_button
         signal_1_delay_seconds:
-          name: Vorlaufzeit
+          name: Start delay
           description: >-
-            Bei On/Off-Entities muss die Entity waehrend der gesamten Vorlaufzeit
-            eingeschaltet bleiben. Bei einem Input Button ist dies eine einfache
-            Verzoegerung nach dem Tastendruck.
+            An On/Off entity must remain on for the entire delay. For an Input
+            Button, this is a simple delay after the button press.
           default: 0
           selector:
             number:
@@ -65,24 +64,27 @@ blueprint:
               unit_of_measurement: s
               mode: box
         signal_1_min_minutes:
-          name: Mindest-Signallaufzeit
+          name: Minimum signal duration
           description: >-
-            Das Limodor-Signal bleibt nach dem Start mindestens so lange aktiv.
-            Bei einem Input Button ist dies die komplette Signallaufzeit.
-          default: 1
+            After starting, the Limodor signal remains active for at least this
+            duration. After that, an On/Off entity controls the signal until it
+            switches off or the maximum duration is reached. For an Input Button,
+            this is the complete signal duration. A value of 0 produces only a
+            very short on/off pulse.
+          default: 0
           selector:
             number:
-              min: 0.1
+              min: 0
               max: 240
               step: 0.1
               unit_of_measurement: min
               mode: box
         signal_1_max_minutes:
-          name: Maximale Signallaufzeit
+          name: Maximum signal duration
           description: >-
-            Sicherheitsgrenze, solange eine On/Off-Entity eingeschaltet bleibt.
-            Muss groesser oder gleich der Mindest-Signallaufzeit sein. Fuer Input
-            Buttons wird dieser Wert nicht verwendet.
+            Safety limit while an On/Off entity remains on. Must be greater than
+            or equal to the minimum signal duration. This value is not used for
+            Input Buttons.
           default: 60
           selector:
             number:
@@ -93,15 +95,15 @@ blueprint:
               mode: box
 
     signal_2:
-      name: Signalgeber 2
+      name: Signal source 2
       icon: mdi:numeric-2-circle
       collapsed: true
       input:
         signal_2_entity:
           name: Entity
           description: >-
-            Licht, Schalter, Binary Sensor, Input Boolean oder Input Button.
-            Leer lassen, um diesen Signalgeber zu deaktivieren.
+            Light, switch, binary sensor, Input Boolean, or Input Button.
+            Leave empty to disable this signal source.
           default: []
           selector:
             entity:
@@ -112,7 +114,7 @@ blueprint:
                 - domain: input_boolean
                 - domain: input_button
         signal_2_delay_seconds:
-          name: Vorlaufzeit
+          name: Start delay
           default: 0
           selector:
             number:
@@ -122,20 +124,24 @@ blueprint:
               unit_of_measurement: s
               mode: box
         signal_2_min_minutes:
-          name: Mindest-Signallaufzeit
-          default: 1
+          name: Minimum signal duration
+          description: >-
+            After starting, the signal remains active for at least this duration.
+            A value of 0 lets an On/Off entity determine the duration directly
+            and produces a very short pulse for an Input Button.
+          default: 0
           selector:
             number:
-              min: 0.1
+              min: 0
               max: 240
               step: 0.1
               unit_of_measurement: min
               mode: box
         signal_2_max_minutes:
-          name: Maximale Signallaufzeit
+          name: Maximum signal duration
           description: >-
-            Muss groesser oder gleich der Mindest-Signallaufzeit sein. Fuer Input
-            Buttons wird dieser Wert nicht verwendet.
+            Must be greater than or equal to the minimum signal duration. This
+            value is not used for Input Buttons.
           default: 60
           selector:
             number:
@@ -146,15 +152,15 @@ blueprint:
               mode: box
 
     signal_3:
-      name: Signalgeber 3
+      name: Signal source 3
       icon: mdi:numeric-3-circle
       collapsed: true
       input:
         signal_3_entity:
           name: Entity
           description: >-
-            Licht, Schalter, Binary Sensor, Input Boolean oder Input Button.
-            Leer lassen, um diesen Signalgeber zu deaktivieren.
+            Light, switch, binary sensor, Input Boolean, or Input Button.
+            Leave empty to disable this signal source.
           default: []
           selector:
             entity:
@@ -165,7 +171,7 @@ blueprint:
                 - domain: input_boolean
                 - domain: input_button
         signal_3_delay_seconds:
-          name: Vorlaufzeit
+          name: Start delay
           default: 0
           selector:
             number:
@@ -175,20 +181,24 @@ blueprint:
               unit_of_measurement: s
               mode: box
         signal_3_min_minutes:
-          name: Mindest-Signallaufzeit
-          default: 1
+          name: Minimum signal duration
+          description: >-
+            After starting, the signal remains active for at least this duration.
+            A value of 0 lets an On/Off entity determine the duration directly
+            and produces a very short pulse for an Input Button.
+          default: 0
           selector:
             number:
-              min: 0.1
+              min: 0
               max: 240
               step: 0.1
               unit_of_measurement: min
               mode: box
         signal_3_max_minutes:
-          name: Maximale Signallaufzeit
+          name: Maximum signal duration
           description: >-
-            Muss groesser oder gleich der Mindest-Signallaufzeit sein. Fuer Input
-            Buttons wird dieser Wert nicht verwendet.
+            Must be greater than or equal to the minimum signal duration. This
+            value is not used for Input Buttons.
           default: 60
           selector:
             number:
@@ -199,22 +209,22 @@ blueprint:
               mode: box
 
     schedule_1:
-      name: Zeitplan 1
+      name: Schedule 1
       icon: mdi:clock-outline
       collapsed: true
       input:
         schedule_1_enabled:
-          name: Aktiviert
+          name: Enabled
           default: false
           selector:
             boolean:
         schedule_1_time:
-          name: Startzeit
+          name: Start time
           default: "08:00:00"
           selector:
             time:
         schedule_1_weekdays:
-          name: Wochentage
+          name: Weekdays
           default:
             - mon
             - tue
@@ -227,22 +237,22 @@ blueprint:
             select:
               multiple: true
               options:
-                - label: Montag
+                - label: Monday
                   value: mon
-                - label: Dienstag
+                - label: Tuesday
                   value: tue
-                - label: Mittwoch
+                - label: Wednesday
                   value: wed
-                - label: Donnerstag
+                - label: Thursday
                   value: thu
-                - label: Freitag
+                - label: Friday
                   value: fri
-                - label: Samstag
+                - label: Saturday
                   value: sat
-                - label: Sonntag
+                - label: Sunday
                   value: sun
         schedule_1_duration_minutes:
-          name: Signallaufzeit
+          name: Signal duration
           default: 1
           selector:
             number:
@@ -252,9 +262,9 @@ blueprint:
               unit_of_measurement: min
               mode: box
         schedule_1_condition_entity:
-          name: Optionale Boolean-Bedingung
+          name: Optional Boolean condition
           description: >-
-            Wird nur beim Start geprueft. Leer bedeutet keine Bedingung.
+            Evaluated only when the schedule starts. Empty means no condition.
           default: []
           selector:
             entity:
@@ -264,33 +274,33 @@ blueprint:
                 - domain: switch
                 - domain: light
         schedule_1_condition_state:
-          name: Erforderlicher Zustand
+          name: Required state
           default: "on"
           selector:
             select:
               options:
-                - label: An
+                - label: On
                   value: "on"
-                - label: Aus
+                - label: Off
                   value: "off"
 
     schedule_2:
-      name: Zeitplan 2
+      name: Schedule 2
       icon: mdi:clock-outline
       collapsed: true
       input:
         schedule_2_enabled:
-          name: Aktiviert
+          name: Enabled
           default: false
           selector:
             boolean:
         schedule_2_time:
-          name: Startzeit
+          name: Start time
           default: "12:00:00"
           selector:
             time:
         schedule_2_weekdays:
-          name: Wochentage
+          name: Weekdays
           default:
             - mon
             - tue
@@ -303,22 +313,22 @@ blueprint:
             select:
               multiple: true
               options:
-                - label: Montag
+                - label: Monday
                   value: mon
-                - label: Dienstag
+                - label: Tuesday
                   value: tue
-                - label: Mittwoch
+                - label: Wednesday
                   value: wed
-                - label: Donnerstag
+                - label: Thursday
                   value: thu
-                - label: Freitag
+                - label: Friday
                   value: fri
-                - label: Samstag
+                - label: Saturday
                   value: sat
-                - label: Sonntag
+                - label: Sunday
                   value: sun
         schedule_2_duration_minutes:
-          name: Signallaufzeit
+          name: Signal duration
           default: 1
           selector:
             number:
@@ -328,8 +338,8 @@ blueprint:
               unit_of_measurement: min
               mode: box
         schedule_2_condition_entity:
-          name: Optionale Boolean-Bedingung
-          description: Wird nur beim Start geprueft. Leer bedeutet keine Bedingung.
+          name: Optional Boolean condition
+          description: Evaluated only when the schedule starts. Empty means no condition.
           default: []
           selector:
             entity:
@@ -339,33 +349,33 @@ blueprint:
                 - domain: switch
                 - domain: light
         schedule_2_condition_state:
-          name: Erforderlicher Zustand
+          name: Required state
           default: "on"
           selector:
             select:
               options:
-                - label: An
+                - label: On
                   value: "on"
-                - label: Aus
+                - label: Off
                   value: "off"
 
     schedule_3:
-      name: Zeitplan 3
+      name: Schedule 3
       icon: mdi:clock-outline
       collapsed: true
       input:
         schedule_3_enabled:
-          name: Aktiviert
+          name: Enabled
           default: false
           selector:
             boolean:
         schedule_3_time:
-          name: Startzeit
+          name: Start time
           default: "18:00:00"
           selector:
             time:
         schedule_3_weekdays:
-          name: Wochentage
+          name: Weekdays
           default:
             - mon
             - tue
@@ -378,22 +388,22 @@ blueprint:
             select:
               multiple: true
               options:
-                - label: Montag
+                - label: Monday
                   value: mon
-                - label: Dienstag
+                - label: Tuesday
                   value: tue
-                - label: Mittwoch
+                - label: Wednesday
                   value: wed
-                - label: Donnerstag
+                - label: Thursday
                   value: thu
-                - label: Freitag
+                - label: Friday
                   value: fri
-                - label: Samstag
+                - label: Saturday
                   value: sat
-                - label: Sonntag
+                - label: Sunday
                   value: sun
         schedule_3_duration_minutes:
-          name: Signallaufzeit
+          name: Signal duration
           default: 1
           selector:
             number:
@@ -403,8 +413,8 @@ blueprint:
               unit_of_measurement: min
               mode: box
         schedule_3_condition_entity:
-          name: Optionale Boolean-Bedingung
-          description: Wird nur beim Start geprueft. Leer bedeutet keine Bedingung.
+          name: Optional Boolean condition
+          description: Evaluated only when the schedule starts. Empty means no condition.
           default: []
           selector:
             entity:
@@ -414,28 +424,28 @@ blueprint:
                 - domain: switch
                 - domain: light
         schedule_3_condition_state:
-          name: Erforderlicher Zustand
+          name: Required state
           default: "on"
           selector:
             select:
               options:
-                - label: An
+                - label: On
                   value: "on"
-                - label: Aus
+                - label: Off
                   value: "off"
 
     humidity:
-      name: Luftfeuchtigkeit
+      name: Humidity
       icon: mdi:water-percent
       collapsed: true
       input:
         humidity_enabled:
-          name: Aktiviert
+          name: Enabled
           default: false
           selector:
             boolean:
         humidity_sensor:
-          name: Luftfeuchtigkeitssensor
+          name: Humidity sensor
           default: []
           selector:
             entity:
@@ -443,10 +453,10 @@ blueprint:
                 - domain: sensor
                   device_class: humidity
         humidity_threshold:
-          name: Einschaltschwelle
+          name: Activation threshold
           description: >-
-            Gestartet wird bei jedem numerischen Anstieg, dessen neuer Wert ueber
-            dieser Schwelle liegt.
+            Starts on every numeric increase whose new value is above this
+            threshold.
           default: 65
           selector:
             number:
@@ -456,8 +466,8 @@ blueprint:
               unit_of_measurement: "%"
               mode: slider
         humidity_duration_minutes:
-          name: Signallaufzeit
-          description: Feste Signallaufzeit je ausgeloestem Feuchtigkeitszyklus.
+          name: Signal duration
+          description: Fixed signal duration for each triggered humidity cycle.
           default: 10
           selector:
             number:
@@ -467,11 +477,11 @@ blueprint:
               unit_of_measurement: min
               mode: box
         humidity_pause_minutes:
-          name: Pruef-Pause
+          name: Recheck pause
           description: >-
-            Waehrend der Laufzeit und dieser anschliessenden Pause werden weitere
-            Feuchtigkeitsanstiege ignoriert. Danach ist der naechste Anstieg ueber
-            der Schwelle wieder startberechtigt.
+            Further humidity increases are ignored during the signal duration and
+            this subsequent pause. Afterward, the next increase above the threshold
+            can start a new cycle.
           default: 5
           selector:
             number:
@@ -481,10 +491,14 @@ blueprint:
               unit_of_measurement: min
               mode: box
         humidity_cooldown_timer:
-          name: Timer-Helfer fuer Feuchtigkeitszyklus
+          name: Humidity cycle lockout timer
           description: >-
-            Eigener Timer-Helfer nur fuer diesen Blueprint. Seine konfigurierte
-            Standarddauer ist egal; der Blueprint setzt sie dynamisch.
+            A dedicated Timer helper used as memory for the humidity cycle. It
+            remains active for the configured signal duration plus the recheck
+            pause, preventing every sensor increase from starting another parallel
+            run and bypassing the pause. Do not share this timer with other
+            automations. Its configured default duration does not matter because
+            this blueprint sets the duration dynamically.
           default: []
           selector:
             entity:
@@ -623,7 +637,7 @@ conditions: []
 
 actions:
   - choose:
-      - alias: Signalgeber 1 wurde eingeschaltet
+      - alias: Signal source 1 switched on
         conditions:
           - condition: trigger
             id: signal_1_on
@@ -655,7 +669,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Input Button 1 wurde gedrueckt
+      - alias: Input Button 1 pressed
         conditions:
           - condition: trigger
             id: signal_1_button
@@ -674,7 +688,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Signalgeber 2 wurde eingeschaltet
+      - alias: Signal source 2 switched on
         conditions:
           - condition: trigger
             id: signal_2_on
@@ -706,7 +720,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Input Button 2 wurde gedrueckt
+      - alias: Input Button 2 pressed
         conditions:
           - condition: trigger
             id: signal_2_button
@@ -725,7 +739,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Signalgeber 3 wurde eingeschaltet
+      - alias: Signal source 3 switched on
         conditions:
           - condition: trigger
             id: signal_3_on
@@ -757,7 +771,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Input Button 3 wurde gedrueckt
+      - alias: Input Button 3 pressed
         conditions:
           - condition: trigger
             id: signal_3_button
@@ -776,7 +790,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Zeitplan 1
+      - alias: Schedule 1
         conditions:
           - condition: trigger
             id: schedule_1
@@ -803,7 +817,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Zeitplan 2
+      - alias: Schedule 2
         conditions:
           - condition: trigger
             id: schedule_2
@@ -830,7 +844,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Zeitplan 3
+      - alias: Schedule 3
         conditions:
           - condition: trigger
             id: schedule_3
@@ -857,7 +871,7 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Anstieg der Luftfeuchtigkeit
+      - alias: Humidity increase
         conditions:
           - condition: trigger
             id: humidity_rise
@@ -892,12 +906,12 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-      - alias: Home Assistant wurde gestartet
+      - alias: Home Assistant started
         conditions:
           - condition: trigger
             id: startup
         sequence:
-          - alias: Ausgang fuer eine definierte Neubewertung ausschalten
+          - alias: Switch off output before deterministic reevaluation
             action: switch.turn_off
             target:
               entity_id: !input limodor_switch
@@ -1033,9 +1047,9 @@ actions:
                 target:
                   entity_id: !input limodor_switch
 
-  # Gemeinsamer Abschluss auch fuer verworfene Trigger. Die kurze Verzoegerung
-  # sorgt dafuer, dass bei gleichzeitig endenden parallelen Laeufen genau der
-  # zuletzt verbleibende Lauf das Signal ausschaltet.
+  # Common cleanup for rejected triggers as well. The short delay ensures that
+  # when parallel runs end simultaneously, the final remaining run switches off
+  # the signal.
   - delay:
       milliseconds: 50
   - if:
