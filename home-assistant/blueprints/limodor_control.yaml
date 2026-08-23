@@ -3,7 +3,7 @@ blueprint:
   description: >-
     Controls the signal line of a Limodor fan using up to three state-based
     sources or Input Buttons, three daily schedules, and an optional humidity
-    sensor.
+    control with up to two sensors.
 
     The Limodor's internal run-on time is not included in any configured duration.
     All durations apply only to the switched signal line. Overlapping requests
@@ -433,7 +433,20 @@ blueprint:
           selector:
             boolean:
         humidity_sensor:
-          name: Humidity sensor
+          name: Humidity sensor 1
+          description: >-
+            Select at least one humidity sensor when humidity control is enabled.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: humidity
+        humidity_sensor_2:
+          name: Humidity sensor 2
+          description: >-
+            Optional second sensor using the same threshold, signal duration,
+            recheck pause, and lockout timer.
           default: []
           selector:
             entity:
@@ -443,8 +456,8 @@ blueprint:
         humidity_threshold:
           name: Activation threshold
           description: >-
-            Starts on every numeric increase whose new value is above this
-            threshold.
+            Starts when either configured sensor reports a numeric increase whose
+            new value is above this threshold.
           default: 65
           selector:
             number:
@@ -494,6 +507,9 @@ trigger_variables:
   signal_1_trigger_entity: !input signal_1_entity
   signal_2_trigger_entity: !input signal_2_entity
   signal_3_trigger_entity: !input signal_3_entity
+  humidity_trigger_enabled: !input humidity_enabled
+  humidity_sensor_1_trigger_entity: !input humidity_sensor
+  humidity_sensor_2_trigger_entity: !input humidity_sensor_2
 
 triggers:
   - trigger: state
@@ -570,7 +586,16 @@ triggers:
 
   - trigger: state
     entity_id: !input humidity_sensor
-    enabled: !input humidity_enabled
+    enabled: >-
+      {{ humidity_trigger_enabled and
+         humidity_sensor_1_trigger_entity is string }}
+    id: humidity_rise
+
+  - trigger: state
+    entity_id: !input humidity_sensor_2
+    enabled: >-
+      {{ humidity_trigger_enabled and
+         humidity_sensor_2_trigger_entity is string }}
     id: humidity_rise
 
   - trigger: state
@@ -616,6 +641,7 @@ variables:
 
   humidity_enabled: !input humidity_enabled
   humidity_sensor: !input humidity_sensor
+  humidity_sensor_2: !input humidity_sensor_2
   humidity_threshold: !input humidity_threshold
   humidity_duration_minutes: !input humidity_duration_minutes
   humidity_pause_minutes: !input humidity_pause_minutes
@@ -1137,11 +1163,16 @@ actions:
                   - condition: template
                     value_template: >-
                       {{ humidity_enabled and
-                         humidity_sensor is string and
                          humidity_cooldown_timer is string and
-                         is_number(states(humidity_sensor)) and
-                         (states(humidity_sensor) | float(0)) >
-                           (humidity_threshold | float(0)) }}
+                         humidity_cooldown_timer != '' and
+                         ((humidity_sensor is string and
+                           is_number(states(humidity_sensor)) and
+                           (states(humidity_sensor) | float(0)) >
+                             (humidity_threshold | float(0))) or
+                          (humidity_sensor_2 is string and
+                           is_number(states(humidity_sensor_2)) and
+                           (states(humidity_sensor_2) | float(0)) >
+                             (humidity_threshold | float(0)))) }}
                   - action: timer.start
                     target:
                       entity_id: !input humidity_cooldown_timer
