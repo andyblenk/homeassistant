@@ -445,8 +445,8 @@ blueprint:
         humidity_sensor_2:
           name: Humidity sensor 2
           description: >-
-            Optional second sensor using the same threshold, signal duration,
-            recheck pause, and lockout timer.
+            Optional second sensor using the same thresholds, signal duration,
+            periodic check interval, recheck pause, and lockout timer.
           default: []
           selector:
             entity:
@@ -466,6 +466,32 @@ blueprint:
               step: 1
               unit_of_measurement: "%"
               mode: slider
+        humidity_periodic_threshold:
+          name: Persistent humidity threshold
+          description: >-
+            At each periodic check, starts a humidity cycle when either configured
+            sensor is above this threshold, even if the value has not increased.
+          default: 70
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+        humidity_periodic_interval_minutes:
+          name: Persistent humidity check interval
+          description: >-
+            How often persistent humidity is checked. The same signal duration,
+            recheck pause, and lockout timer are used for both humidity triggers.
+          default: 60
+          selector:
+            number:
+              min: 1
+              max: 1440
+              step: 1
+              unit_of_measurement: min
+              mode: box
         humidity_duration_minutes:
           name: Signal duration
           description: Fixed signal duration for each triggered humidity cycle.
@@ -480,9 +506,9 @@ blueprint:
         humidity_pause_minutes:
           name: Recheck pause
           description: >-
-            Further humidity increases are ignored during the signal duration and
-            this subsequent pause. Afterward, the next increase above the threshold
-            can start a new cycle.
+            Further humidity activations are ignored during the signal duration
+            and this subsequent pause. Afterward, a new increase or periodic check
+            above its respective threshold can start a new cycle.
           default: 5
           selector:
             number:
@@ -643,6 +669,8 @@ variables:
   humidity_sensor: !input humidity_sensor
   humidity_sensor_2: !input humidity_sensor_2
   humidity_threshold: !input humidity_threshold
+  humidity_periodic_threshold: !input humidity_periodic_threshold
+  humidity_periodic_interval_minutes: !input humidity_periodic_interval_minutes
   humidity_duration_minutes: !input humidity_duration_minutes
   humidity_pause_minutes: !input humidity_pause_minutes
   humidity_cooldown_timer: !input humidity_cooldown_timer
@@ -995,21 +1023,44 @@ actions:
             target:
               entity_id: !input limodor_switch
 
-      - alias: Humidity increase
+      - alias: Humidity activation
         conditions:
-          - condition: trigger
-            id: humidity_rise
           - condition: template
             value_template: >-
-              {{ trigger.from_state is not none and
-                 trigger.to_state is not none and
-                 is_number(trigger.from_state.state) and
-                 is_number(trigger.to_state.state) and
-                 (trigger.to_state.state | float(0)) >
-                   (trigger.from_state.state | float(0)) and
-                 (trigger.to_state.state | float(0)) >
-                   (humidity_threshold | float(0)) and
-                 is_state(humidity_cooldown_timer, 'idle') }}
+              {% set timer_ready =
+                   humidity_enabled and
+                   humidity_cooldown_timer is string and
+                   humidity_cooldown_timer != '' and
+                   is_state(humidity_cooldown_timer, 'idle') %}
+              {% if trigger.id == 'humidity_rise' %}
+                {{ timer_ready and
+                   trigger.from_state is not none and
+                   trigger.to_state is not none and
+                   is_number(trigger.from_state.state) and
+                   is_number(trigger.to_state.state) and
+                   (trigger.to_state.state | float(0)) >
+                     (trigger.from_state.state | float(0)) and
+                   (trigger.to_state.state | float(0)) >
+                     (humidity_threshold | float(0)) }}
+              {% elif trigger.id == 'global_safety_watchdog' %}
+                {% set interval =
+                     humidity_periodic_interval_minutes | int(60) %}
+                {% set current_minute =
+                     (as_timestamp(now()) / 60) | int(0) %}
+                {{ timer_ready and
+                   interval > 0 and
+                   current_minute % interval == 0 and
+                   ((humidity_sensor is string and
+                     is_number(states(humidity_sensor)) and
+                     (states(humidity_sensor) | float(0)) >
+                       (humidity_periodic_threshold | float(0))) or
+                    (humidity_sensor_2 is string and
+                     is_number(states(humidity_sensor_2)) and
+                     (states(humidity_sensor_2) | float(0)) >
+                       (humidity_periodic_threshold | float(0)))) }}
+              {% else %}
+                false
+              {% endif %}
         sequence:
           - action: timer.start
             target:
