@@ -32,3 +32,27 @@ Inputs:
 - Media players (HomePods/AirPlay)
 - Volume (0.1–1.0)
 - Ringtone path (MP3)
+
+### Limodor Fan Control
+Path: `blueprints/limodor_control.yaml`
+
+Controls the signal line of a Limodor fan while leaving its permanent power supply untouched. The fan can be requested by up to three state-based entities or Input Buttons, three independent daily schedules, and an optional humidity controller with up to two sensors.
+
+State-based sources support individual start delays and minimum signal durations. Input Buttons create timed requests. Schedules support selectable weekdays, configurable durations, and optional on/off conditions. Humidity control can react to a rising value above an activation threshold and periodically recheck for persistently high humidity.
+
+Overlapping requests run in parallel. The signal line remains on until the last active request ends. A configurable global safety timeout forces the signal line off if it remains active too long. On Home Assistant startup or automation reload, active sources and humidity conditions are reevaluated deterministically.
+
+Important:
+- Requires Home Assistant 2024.10.0 or newer
+- Controls only the Limodor signal line, not its permanent power supply
+- The Limodor's internal run-on time starts after the signal line is switched off and is not included in configured durations
+- Humidity control requires a dedicated Timer helper for cycle lockout
+
+Inputs:
+- Limodor signal switch and global safety timeout
+- Up to three source entities (light, switch, binary sensor, Input Boolean, or Input Button)
+- Per-source start delay and minimum signal duration
+- Up to three schedules with weekdays, duration, and optional condition
+- Up to two humidity sensors
+- Activation and persistent-humidity thresholds
+- Humidity signal duration, periodic check interval, recheck pause, and Timer helper
