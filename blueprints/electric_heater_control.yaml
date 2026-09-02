@@ -1,16 +1,311 @@
 blueprint:
   name: Electric heater control
   description: >-
-    Controls an electric heater. Inputs, triggers, conditions, and actions will
-    be defined in the next step.
+    Controls an electric heater through a Home Assistant climate entity.
+
+    The heater follows the target temperature of another climate entity and is
+    switched off when automatic control is disabled, nobody is present, a window
+    is open, or required values are unavailable. Optional battery and PV sensors
+    can restrict normal heating to times with sufficient available energy.
+
+    The blueprint expects the heater to support the HVAC modes heat and off as
+    well as the configured low and medium presets. A high preset can optionally
+    be enabled for large temperature differences. It is disabled by default.
   domain: automation
   author: Andreas Blenk
   homeassistant:
     min_version: 2024.10.0
-  input: {}
 
-triggers: []
+  input:
+    basic:
+      name: Basic configuration
+      icon: mdi:radiator
+      input:
+        heater:
+          name: Electric heater
+          description: >-
+            Climate entity that controls the electric heater. It must support
+            the HVAC modes heat and off and the configured presets.
+          selector:
+            entity:
+              filter:
+                - domain: climate
+        target_climate:
+          name: Target temperature source
+          description: >-
+            Climate entity whose target temperature is used. Its HVAC mode is
+            not evaluated in this first version.
+          selector:
+            entity:
+              filter:
+                - domain: climate
+        temperature_sensor:
+          name: Room temperature sensor
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
+        automatic_control:
+          name: Automatic control
+          description: Turning this Input Boolean off always switches the heater off.
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+
+    safety:
+      name: Safety conditions
+      icon: mdi:shield-check
+      input:
+        presence_entity:
+          name: Presence
+          description: Must be on for heating to be allowed.
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+        window_sensor:
+          name: Window sensor
+          description: The window is considered closed when this entity is off.
+          selector:
+            entity:
+              filter:
+                - domain: binary_sensor
+        continuous_heating_timer:
+          name: Continuous heating timer
+          description: >-
+            While active, normal energy restrictions are ignored and the medium
+            preset is used. Presence, window, and automatic control still apply.
+          selector:
+            entity:
+              filter:
+                - domain: timer
+
+    regulation:
+      name: Temperature regulation
+      icon: mdi:thermometer
+      collapsed: true
+      input:
+        switch_off_tolerance:
+          name: Switch-off tolerance
+          description: Heater switches off this far above the target temperature.
+          default: 0.3
+          selector:
+            number:
+              min: 0
+              max: 3
+              step: 0.1
+              unit_of_measurement: °C
+              mode: box
+        low_preset_range:
+          name: Low preset range
+          description: >-
+            The low preset is used from this distance below the target until the
+            switch-off temperature is reached.
+          default: 0.3
+          selector:
+            number:
+              min: 0
+              max: 3
+              step: 0.1
+              unit_of_measurement: °C
+              mode: box
+        low_preset:
+          name: Low preset
+          default: low
+          selector:
+            text:
+        medium_preset:
+          name: Medium preset
+          default: mid
+          selector:
+            text:
+        high_enabled:
+          name: Allow high preset
+          description: >-
+            Disabled by default because the high preset may cause high power
+            consumption.
+          default: false
+          selector:
+            boolean:
+        high_preset:
+          name: High preset
+          default: high
+          selector:
+            text:
+        high_temperature_difference:
+          name: High preset temperature difference
+          description: >-
+            When high is enabled, it is used below target minus this value.
+          default: 2
+          selector:
+            number:
+              min: 0.5
+              max: 10
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+
+    energy:
+      name: Optional energy conditions
+      icon: mdi:solar-power
+      collapsed: true
+      input:
+        battery_sensor:
+          name: Battery state of charge
+          description: Leave empty when no battery condition should be used.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: battery
+        battery_threshold:
+          name: Minimum battery state of charge
+          default: 65
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+        pv_power_sensor:
+          name: PV power
+          description: Leave empty when no PV condition should be used.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: power
+        pv_power_threshold:
+          name: Minimum PV power
+          description: Enter the threshold in the unit used by the selected sensor.
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 50000
+              step: 0.1
+              mode: box
+
+triggers:
+  - trigger: time_pattern
+    minutes: /15
+  - trigger: state
+    entity_id: !input temperature_sensor
+  - trigger: state
+    entity_id: !input target_climate
+    attribute: temperature
+  - trigger: state
+    entity_id: !input automatic_control
+  - trigger: state
+    entity_id: !input presence_entity
+  - trigger: state
+    entity_id: !input window_sensor
+  - trigger: state
+    entity_id: !input continuous_heating_timer
+  - trigger: state
+    entity_id: !input battery_sensor
+  - trigger: state
+    entity_id: !input pv_power_sensor
+  - trigger: homeassistant
+    event: start
+  - trigger: event
+    event_type: automation_reloaded
+
 conditions: []
-actions: []
+
+actions:
+  - variables:
+      heater_entity: !input heater
+      target_climate_entity: !input target_climate
+      temperature_sensor_entity: !input temperature_sensor
+      automatic_control_entity: !input automatic_control
+      presence_entity: !input presence_entity
+      window_sensor_entity: !input window_sensor
+      continuous_heating_timer_entity: !input continuous_heating_timer
+      battery_sensor_entity: !input battery_sensor
+      battery_threshold: !input battery_threshold
+      pv_power_sensor_entity: !input pv_power_sensor
+      pv_power_threshold: !input pv_power_threshold
+      switch_off_tolerance: !input switch_off_tolerance
+      low_preset_range: !input low_preset_range
+      low_preset: !input low_preset
+      medium_preset: !input medium_preset
+      high_enabled: !input high_enabled
+      high_preset: !input high_preset
+      high_temperature_difference: !input high_temperature_difference
+      current_temperature: "{{ states(temperature_sensor_entity) | float(0) }}"
+      target_temperature: >-
+        {{ state_attr(target_climate_entity, 'temperature') | float(0) }}
+      required_values_available: >-
+        {{ has_value(heater_entity)
+           and has_value(temperature_sensor_entity)
+           and state_attr(target_climate_entity, 'temperature') is number }}
+      safety_conditions_met: >-
+        {{ is_state(automatic_control_entity, 'on')
+           and is_state(presence_entity, 'on')
+           and is_state(window_sensor_entity, 'off') }}
+      continuous_heating: >-
+        {{ is_state(continuous_heating_timer_entity, 'active') }}
+      battery_configured: "{{ battery_sensor_entity | count > 0 }}"
+      pv_power_configured: "{{ pv_power_sensor_entity | count > 0 }}"
+      battery_energy_available: >-
+        {{ battery_configured
+           and has_value(battery_sensor_entity)
+           and states(battery_sensor_entity) | float(0) > battery_threshold | float }}
+      pv_energy_available: >-
+        {{ pv_power_configured
+           and has_value(pv_power_sensor_entity)
+           and states(pv_power_sensor_entity) | float(0) > pv_power_threshold | float }}
+      normal_energy_available: >-
+        {{ (not battery_configured and not pv_power_configured)
+           or battery_energy_available
+           or pv_energy_available }}
+      heating_allowed: >-
+        {{ required_values_available
+           and safety_conditions_met
+           and (continuous_heating or normal_energy_available) }}
+      heating_level: >-
+        {% if not heating_allowed %}
+          off
+        {% elif continuous_heating %}
+          {{ medium_preset }}
+        {% elif current_temperature >= target_temperature + switch_off_tolerance %}
+          off
+        {% elif high_enabled
+                and current_temperature < target_temperature - high_temperature_difference %}
+          {{ high_preset }}
+        {% elif current_temperature >= target_temperature - low_preset_range %}
+          {{ low_preset }}
+        {% else %}
+          {{ medium_preset }}
+        {% endif %}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ heating_level == 'off' }}"
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input heater
+            data:
+              hvac_mode: "off"
+    default:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: !input heater
+        data:
+          hvac_mode: heat
+      - action: climate.set_preset_mode
+        target:
+          entity_id: !input heater
+        data:
+          preset_mode: "{{ heating_level }}"
 
 mode: restart
+max_exceeded: silent
