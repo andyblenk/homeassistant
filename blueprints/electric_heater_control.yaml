@@ -1,0 +1,16 @@
+blueprint:
+  name: Electric heater control
+  description: >-
+    Controls an electric heater. Inputs, triggers, conditions, and actions will
+    be defined in the next step.
+  domain: automation
+  author: Andreas Blenk
+  homeassistant:
+    min_version: 2024.10.0
+  input: {}
+
+triggers: []
+conditions: []
+actions: []
+
+mode: restart
