@@ -259,16 +259,22 @@ blueprint:
               mode: box
 
     surplus_heating:
-      name: Surplus heating
+      name: PV surplus heating
       icon: mdi:solar-power-variant
       collapsed: true
       input:
         surplus_heating_enabled:
-          name: Enable surplus heating
+          name: Enable PV surplus heating
           description: Uses a higher target temperature when PV power is sufficient.
           default: false
           selector:
             boolean:
+        surplus_start_time:
+          name: Earliest start time
+          description: PV surplus heating is disabled before this time each day.
+          default: "13:00:00"
+          selector:
+            time:
         surplus_pv_threshold:
           name: Minimum PV power
           description: PV power must exceed this value, using the sensor's unit.
@@ -318,9 +324,9 @@ triggers:
   - trigger: state
     entity_id: !input battery_sensor
   - trigger: state
-    entity_id: !input pv_power_sensor
-  - trigger: state
     entity_id: !input surplus_target_temperature
+  - trigger: time
+    at: !input surplus_start_time
   - trigger: homeassistant
     event: start
   - trigger: event
@@ -344,6 +350,7 @@ actions:
       pv_power_sensor_entity: !input pv_power_sensor
       pv_power_threshold: !input pv_power_threshold
       surplus_heating_enabled: !input surplus_heating_enabled
+      surplus_start_time: !input surplus_start_time
       surplus_pv_threshold: !input surplus_pv_threshold
       surplus_target_temperature_entity: !input surplus_target_temperature
       surplus_temperature_offset: !input surplus_temperature_offset
@@ -376,6 +383,7 @@ actions:
         {{ surplus_target_temperature_entity | count > 0 }}
       surplus_heating_active: >-
         {{ surplus_heating_enabled
+           and now() >= today_at(surplus_start_time)
            and pv_power_configured
            and surplus_target_configured
            and has_value(pv_power_sensor_entity)
@@ -423,6 +431,18 @@ actions:
         {{ heating_level != 'off'
            and current_temperature
                >= target_temperature - electric_heater_only_difference }}
+      heater_should_switch_off: >-
+        {{ heating_level == 'off'
+           and has_value(heater_entity)
+           and not is_state(heater_entity, 'off') }}
+      heater_should_switch_to_heat: >-
+        {{ heating_level != 'off'
+           and has_value(heater_entity)
+           and not is_state(heater_entity, 'heat') }}
+      heater_should_change_preset: >-
+        {{ heating_level != 'off'
+           and has_value(heater_entity)
+           and state_attr(heater_entity, 'preset_mode') != heating_level }}
   - if:
       - condition: template
         value_template: "{{ electric_heater_only_helper_entity | count > 0 }}"
@@ -436,22 +456,35 @@ actions:
           - condition: template
             value_template: "{{ heating_level == 'off' }}"
         sequence:
+          - if:
+              - condition: template
+                value_template: "{{ heater_should_switch_off }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: !input heater
+                data:
+                  hvac_mode: "off"
+    default:
+      - if:
+          - condition: template
+            value_template: "{{ heater_should_switch_to_heat }}"
+        then:
           - action: climate.set_hvac_mode
             target:
               entity_id: !input heater
             data:
-              hvac_mode: "off"
-    default:
-      - action: climate.set_hvac_mode
-        target:
-          entity_id: !input heater
-        data:
-          hvac_mode: heat
-      - action: climate.set_preset_mode
-        target:
-          entity_id: !input heater
-        data:
-          preset_mode: "{{ heating_level }}"
+              hvac_mode: heat
+      - if:
+          - condition: template
+            value_template: >-
+              {{ heater_should_switch_to_heat or heater_should_change_preset }}
+        then:
+          - action: climate.set_preset_mode
+            target:
+              entity_id: !input heater
+            data:
+              preset_mode: "{{ heating_level }}"
 
 mode: restart
 max_exceeded: silent
