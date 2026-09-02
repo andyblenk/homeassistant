@@ -59,7 +59,7 @@ blueprint:
     safety:
       name: Safety conditions
       icon: mdi:shield-check
-      description: Heating is allowed only when all configured conditions are met.
+      description: Presence and window state must allow heating.
       input:
         presence_entity:
           name: Presence
@@ -76,6 +76,12 @@ blueprint:
             entity:
               filter:
                 - domain: binary_sensor
+
+    continuous_heating:
+      name: Continuous heating
+      icon: mdi:timer-outline
+      collapsed: true
+      input:
         continuous_heating_timer:
           name: Continuous heating timer
           description: >-
@@ -89,7 +95,6 @@ blueprint:
       name: Temperature regulation
       icon: mdi:thermometer
       collapsed: true
-      description: Define when the heater uses low, medium, high, or switches off.
       input:
         switch_off_tolerance:
           name: Switch off above target
