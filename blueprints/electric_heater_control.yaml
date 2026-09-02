@@ -406,6 +406,7 @@ actions:
         {{ (not battery_configured and not pv_power_configured)
            or battery_energy_available
            or pv_energy_available }}
+      heater_is_heating: "{{ is_state(heater_entity, 'heat') }}"
       heating_allowed: >-
         {{ required_values_available
            and safety_conditions_met
@@ -417,7 +418,12 @@ actions:
           off
         {% elif continuous_heating %}
           {{ medium_preset }}
-        {% elif current_temperature >= target_temperature + switch_off_tolerance %}
+        {% elif heater_is_heating
+                and current_temperature
+                    >= target_temperature + switch_off_tolerance %}
+          off
+        {% elif not heater_is_heating
+                and current_temperature >= target_temperature %}
           off
         {% elif high_enabled
                 and current_temperature < target_temperature - high_temperature_difference %}
