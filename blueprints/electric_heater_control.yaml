@@ -93,6 +93,33 @@ blueprint:
               filter:
                 - domain: timer
 
+    electric_heater_only:
+      name: Electric heater only mode
+      icon: mdi:radiator
+      collapsed: true
+      input:
+        electric_heater_only_helper:
+          name: Electric heater only helper
+          description: >-
+            Optional Input Boolean. On while the heater runs within the configured
+            range below target; empty disables this output.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+        electric_heater_only_difference:
+          name: Start below target
+          description: Offset below target at which the helper switches on.
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+
     regulation:
       name: Temperature regulation
       icon: mdi:thermometer
@@ -267,6 +294,8 @@ actions:
       presence_entity: !input presence_entity
       window_sensor_entity: !input window_sensor
       continuous_heating_timer_entity: !input continuous_heating_timer
+      electric_heater_only_helper_entity: !input electric_heater_only_helper
+      electric_heater_only_difference: !input electric_heater_only_difference
       battery_sensor_entity: !input battery_sensor
       battery_threshold: !input battery_threshold
       pv_power_sensor_entity: !input pv_power_sensor
@@ -325,6 +354,18 @@ actions:
         {% else %}
           {{ medium_preset }}
         {% endif %}
+      electric_heater_only_active: >-
+        {{ heating_level != 'off'
+           and current_temperature
+               >= target_temperature - electric_heater_only_difference }}
+  - if:
+      - condition: template
+        value_template: "{{ electric_heater_only_helper_entity | count > 0 }}"
+    then:
+      - action: >-
+          input_boolean.turn_{{ 'on' if electric_heater_only_active else 'off' }}
+        target:
+          entity_id: !input electric_heater_only_helper
   - choose:
       - conditions:
           - condition: template
