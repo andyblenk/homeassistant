@@ -4,7 +4,7 @@ Collection of Home Assistant blueprints, automation examples, and practical scri
 ## Home Assistant Blueprints
 
 ### Smart Motion Light Control
-Path: `home-assistant/blueprints/smart_motion_light_control.yaml`
+Path: `blueprints/smart_motion_light_control.yaml`
 
 Turns lights on when motion is detected while respecting ambient brightness (lux) and a user-defined light mode (auto/on/off). Uses a timer for auto-off and a short cooldown window where lux is ignored to prevent flicker.
 
@@ -23,7 +23,7 @@ Inputs:
 - Timer entity and auto-off durations
 
 ### HomePods Doorbell
-Path: `home-assistant/blueprints/homepod_doorbell.yaml`
+Path: `blueprints/homepod_doorbell.yaml`
 
 Plays a doorbell sound on selected HomePods/AirPlay speakers when a doorbell trigger fires. Supports adjustable volume and a custom MP3 path.
 
