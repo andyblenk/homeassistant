@@ -85,7 +85,9 @@ blueprint:
         continuous_heating_timer:
           name: Continuous heating timer
           description: >-
-            Active uses medium and bypasses PV and battery limits. Safety still applies.
+            Optional timer. Active uses medium and bypasses PV and battery limits.
+            Safety still applies; empty disables continuous heating.
+          default: []
           selector:
             entity:
               filter:
