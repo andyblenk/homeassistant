@@ -258,6 +258,47 @@ blueprint:
               step: 0.1
               mode: box
 
+    surplus_heating:
+      name: Surplus heating
+      icon: mdi:solar-power-variant
+      collapsed: true
+      input:
+        surplus_heating_enabled:
+          name: Enable surplus heating
+          description: Uses a higher target temperature when PV power is sufficient.
+          default: false
+          selector:
+            boolean:
+        surplus_pv_threshold:
+          name: Minimum PV power
+          description: PV power must exceed this value, using the sensor's unit.
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 50000
+              step: 0.1
+              mode: box
+        surplus_target_temperature:
+          name: Target temperature helper
+          description: Input Number providing the target for surplus heating.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_number
+        surplus_temperature_offset:
+          name: Additional target temperature
+          description: Added to the target temperature helper while surplus heating.
+          default: 1
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+
 triggers:
   - trigger: time_pattern
     minutes: /15
@@ -278,6 +319,8 @@ triggers:
     entity_id: !input battery_sensor
   - trigger: state
     entity_id: !input pv_power_sensor
+  - trigger: state
+    entity_id: !input surplus_target_temperature
   - trigger: homeassistant
     event: start
   - trigger: event
@@ -300,6 +343,10 @@ actions:
       battery_threshold: !input battery_threshold
       pv_power_sensor_entity: !input pv_power_sensor
       pv_power_threshold: !input pv_power_threshold
+      surplus_heating_enabled: !input surplus_heating_enabled
+      surplus_pv_threshold: !input surplus_pv_threshold
+      surplus_target_temperature_entity: !input surplus_target_temperature
+      surplus_temperature_offset: !input surplus_temperature_offset
       switch_off_tolerance: !input switch_off_tolerance
       low_preset_range: !input low_preset_range
       low_preset: !input low_preset
@@ -308,12 +355,6 @@ actions:
       high_preset: !input high_preset
       high_temperature_difference: !input high_temperature_difference
       current_temperature: "{{ states(temperature_sensor_entity) | float(0) }}"
-      target_temperature: >-
-        {{ state_attr(target_climate_entity, 'temperature') | float(0) }}
-      required_values_available: >-
-        {{ has_value(heater_entity)
-           and has_value(temperature_sensor_entity)
-           and state_attr(target_climate_entity, 'temperature') is number }}
       safety_conditions_met: >-
         {{ (automatic_control_entity | count == 0
             or is_state(automatic_control_entity, 'on'))
@@ -331,6 +372,28 @@ actions:
         {{ pv_power_configured
            and has_value(pv_power_sensor_entity)
            and states(pv_power_sensor_entity) | float(0) > pv_power_threshold | float }}
+      surplus_target_configured: >-
+        {{ surplus_target_temperature_entity | count > 0 }}
+      surplus_heating_active: >-
+        {{ surplus_heating_enabled
+           and pv_power_configured
+           and surplus_target_configured
+           and has_value(pv_power_sensor_entity)
+           and has_value(surplus_target_temperature_entity)
+           and states(pv_power_sensor_entity) | float(0)
+               > surplus_pv_threshold | float }}
+      target_temperature: >-
+        {% if surplus_heating_active %}
+          {{ states(surplus_target_temperature_entity) | float(0)
+             + surplus_temperature_offset | float }}
+        {% else %}
+          {{ state_attr(target_climate_entity, 'temperature') | float(0) }}
+        {% endif %}
+      required_values_available: >-
+        {{ has_value(heater_entity)
+           and has_value(temperature_sensor_entity)
+           and (surplus_heating_active
+                or state_attr(target_climate_entity, 'temperature') is number) }}
       normal_energy_available: >-
         {{ (not battery_configured and not pv_power_configured)
            or battery_energy_available
@@ -338,7 +401,9 @@ actions:
       heating_allowed: >-
         {{ required_values_available
            and safety_conditions_met
-           and (continuous_heating or normal_energy_available) }}
+           and (continuous_heating
+                or surplus_heating_active
+                or normal_energy_available) }}
       heating_level: >-
         {% if not heating_allowed %}
           off
