@@ -48,7 +48,10 @@ blueprint:
                   device_class: temperature
         automatic_control:
           name: Automatic control
-          description: Turning this Input Boolean off always switches the heater off.
+          description: >-
+            Optional Input Boolean for enabling or disabling automatic control.
+            Leave empty to keep automatic control permanently enabled.
+          default: []
           selector:
             entity:
               filter:
@@ -149,9 +152,12 @@ blueprint:
               mode: box
 
     energy:
-      name: Optional energy conditions
+      name: PV and battery control
       icon: mdi:solar-power
       collapsed: true
+      description: >-
+        Optionally allow normal heating only when sufficient PV power or battery
+        charge is available. Leave both sensors empty to disable this restriction.
       input:
         battery_sensor:
           name: Battery state of charge
@@ -247,7 +253,8 @@ actions:
            and has_value(temperature_sensor_entity)
            and state_attr(target_climate_entity, 'temperature') is number }}
       safety_conditions_met: >-
-        {{ is_state(automatic_control_entity, 'on')
+        {{ (automatic_control_entity | count == 0
+            or is_state(automatic_control_entity, 'on'))
            and is_state(presence_entity, 'on')
            and is_state(window_sensor_entity, 'off') }}
       continuous_heating: >-
