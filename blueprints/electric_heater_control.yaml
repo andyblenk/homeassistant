@@ -92,8 +92,10 @@ blueprint:
       collapsed: true
       input:
         switch_off_tolerance:
-          name: Switch-off tolerance
-          description: Heater switches off this far above the target temperature.
+          name: Switch off above target
+          description: >-
+            The heater switches off when the room temperature reaches the target
+            temperature plus this value.
           default: 0.3
           selector:
             number:
@@ -103,10 +105,10 @@ blueprint:
               unit_of_measurement: °C
               mode: box
         low_preset_range:
-          name: Low preset range
+          name: Start low level below target
           description: >-
-            The low preset is used from this distance below the target until the
-            switch-off temperature is reached.
+            The low level starts when the room temperature reaches the target
+            temperature minus this value. Below that, medium is used.
           default: 0.3
           selector:
             number:
@@ -115,33 +117,19 @@ blueprint:
               step: 0.1
               unit_of_measurement: °C
               mode: box
-        low_preset:
-          name: Low preset
-          default: low
-          selector:
-            text:
-        medium_preset:
-          name: Medium preset
-          default: mid
-          selector:
-            text:
         high_enabled:
-          name: Allow high preset
+          name: Allow high level
           description: >-
-            Disabled by default because the high preset may cause high power
+            Disabled by default because the high level may cause high power
             consumption.
           default: false
           selector:
             boolean:
-        high_preset:
-          name: High preset
-          default: high
-          selector:
-            text:
         high_temperature_difference:
-          name: High preset temperature difference
+          name: Start high level below target
           description: >-
-            When high is enabled, it is used below target minus this value.
+            When the high level is enabled, it is used below the target
+            temperature minus this value.
           default: 2
           selector:
             number:
@@ -150,6 +138,49 @@ blueprint:
               step: 0.5
               unit_of_measurement: °C
               mode: box
+
+    presets:
+      name: Heater power presets
+      icon: mdi:radiator
+      collapsed: true
+      description: >-
+        Select the heater's preset names. The common values low, mid, and high
+        are offered as defaults. A different preset name can be entered manually.
+      input:
+        low_preset:
+          name: Low level preset
+          default: low
+          selector:
+            select:
+              options:
+                - low
+                - mid
+                - high
+              custom_value: true
+              mode: dropdown
+        medium_preset:
+          name: Medium level preset
+          default: mid
+          selector:
+            select:
+              options:
+                - low
+                - mid
+                - high
+              custom_value: true
+              mode: dropdown
+        high_preset:
+          name: High level preset
+          description: Only used when the high level is enabled.
+          default: high
+          selector:
+            select:
+              options:
+                - low
+                - mid
+                - high
+              custom_value: true
+              mode: dropdown
 
     energy:
       name: PV and battery control
