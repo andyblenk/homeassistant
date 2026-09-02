@@ -20,12 +20,12 @@ blueprint:
     basic:
       name: Basic configuration
       icon: mdi:radiator
+      description: Select the heater, target temperature, and automatic control.
       input:
         heater:
           name: Electric heater
           description: >-
-            Climate entity that controls the electric heater. It must support
-            the HVAC modes heat and off and the configured presets.
+            Heater climate entity. Must support heat, off, and the configured presets.
           selector:
             entity:
               filter:
@@ -33,14 +33,14 @@ blueprint:
         target_climate:
           name: Target temperature source
           description: >-
-            Climate entity whose target temperature is used. Its HVAC mode is
-            not evaluated in this first version.
+            Climate entity providing the target temperature. Its HVAC mode is ignored.
           selector:
             entity:
               filter:
                 - domain: climate
         temperature_sensor:
           name: Room temperature sensor
+          description: Sensor providing the current room temperature.
           selector:
             entity:
               filter:
@@ -49,8 +49,7 @@ blueprint:
         automatic_control:
           name: Automatic control
           description: >-
-            Optional Input Boolean for enabling or disabling automatic control.
-            Leave empty to keep automatic control permanently enabled.
+            Optional Input Boolean. Off disables heating; empty means always enabled.
           default: []
           selector:
             entity:
@@ -60,6 +59,7 @@ blueprint:
     safety:
       name: Safety conditions
       icon: mdi:shield-check
+      description: Heating is allowed only when all configured conditions are met.
       input:
         presence_entity:
           name: Presence
@@ -79,8 +79,7 @@ blueprint:
         continuous_heating_timer:
           name: Continuous heating timer
           description: >-
-            While active, normal energy restrictions are ignored and the medium
-            preset is used. Presence, window, and automatic control still apply.
+            Active uses medium and bypasses PV and battery limits. Safety still applies.
           selector:
             entity:
               filter:
@@ -90,12 +89,11 @@ blueprint:
       name: Temperature regulation
       icon: mdi:thermometer
       collapsed: true
+      description: Define when the heater uses low, medium, high, or switches off.
       input:
         switch_off_tolerance:
           name: Switch off above target
-          description: >-
-            The heater switches off when the room temperature reaches the target
-            temperature plus this value.
+          description: Offset above the target temperature at which heating stops.
           default: 0.3
           selector:
             number:
@@ -107,8 +105,7 @@ blueprint:
         low_preset_range:
           name: Start low level below target
           description: >-
-            The low level starts when the room temperature reaches the target
-            temperature minus this value. Below that, medium is used.
+            Offset below target at which low starts. Below it, medium is used.
           default: 0.3
           selector:
             number:
@@ -120,16 +117,13 @@ blueprint:
         high_enabled:
           name: Allow high level
           description: >-
-            Disabled by default because the high level may cause high power
-            consumption.
+            Allows high for large temperature differences. Disabled by default.
           default: false
           selector:
             boolean:
         high_temperature_difference:
           name: Start high level below target
-          description: >-
-            When the high level is enabled, it is used below the target
-            temperature minus this value.
+          description: Offset below target at which high starts when enabled.
           default: 2
           selector:
             number:
@@ -144,11 +138,11 @@ blueprint:
       icon: mdi:radiator
       collapsed: true
       description: >-
-        Select the heater's preset names. The common values low, mid, and high
-        are offered as defaults. A different preset name can be entered manually.
+        Map low, medium, and high to the preset names supported by the heater.
       input:
         low_preset:
           name: Low level preset
+          description: Heater preset used near the target temperature.
           default: low
           selector:
             select:
@@ -160,6 +154,7 @@ blueprint:
               mode: dropdown
         medium_preset:
           name: Medium level preset
+          description: Heater preset used below the low-level range and by the timer.
           default: mid
           selector:
             select:
@@ -187,12 +182,11 @@ blueprint:
       icon: mdi:solar-power
       collapsed: true
       description: >-
-        Optionally allow normal heating only when sufficient PV power or battery
-        charge is available. Leave both sensors empty to disable this restriction.
+        Restrict normal heating based on optional PV power and battery charge.
       input:
         battery_sensor:
           name: Battery state of charge
-          description: Leave empty when no battery condition should be used.
+          description: Battery sensor used for heating approval. Empty disables it.
           default: []
           selector:
             entity:
@@ -201,6 +195,7 @@ blueprint:
                   device_class: battery
         battery_threshold:
           name: Minimum battery state of charge
+          description: Battery charge must exceed this value to allow heating.
           default: 65
           selector:
             number:
@@ -211,7 +206,7 @@ blueprint:
               mode: slider
         pv_power_sensor:
           name: PV power
-          description: Leave empty when no PV condition should be used.
+          description: PV power sensor used for heating approval. Empty disables it.
           default: []
           selector:
             entity:
@@ -220,7 +215,7 @@ blueprint:
                   device_class: power
         pv_power_threshold:
           name: Minimum PV power
-          description: Enter the threshold in the unit used by the selected sensor.
+          description: PV power must exceed this value, using the sensor's unit.
           default: 2
           selector:
             number:
