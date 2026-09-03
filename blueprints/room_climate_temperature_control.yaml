@@ -1,16 +1,15 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.2.0
+    Version 0.3.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
 
     Manual temperature changes are stored as the room's desired temperature.
-    Automatic control can temporarily apply a reduced temperature for summer,
-    vacation, absence, or up to three optional daily time windows. Summer and
-    vacation can be overridden manually. Up to three optional safeguard checks
-    can end heating that was left enabled.
+    Automatic control can apply Reduced during vacation or absence. Up to three
+    optional daily time windows can apply Reduced, Eco, or Heat. Up to three
+    optional safeguard checks can end heating that was left enabled.
 
     Only target temperatures are synchronized. HVAC modes, presets, and measured
     temperatures are not changed.
@@ -54,7 +53,7 @@ blueprint:
                 - domain: input_number
         heating_switch:
           name: Heating / Eco switch
-          description: On selects Normal; off selects Eco or Reduced when changed manually.
+          description: On selects Normal; off selects Eco when changed manually.
           selector:
             entity:
               filter:
@@ -96,7 +95,7 @@ blueprint:
               mode: box
         reduced_temperature:
           name: Reduced temperature
-          description: Used during summer, vacation, absence, and active time windows.
+          description: Used during vacation, absence, and Reduced time windows.
           default: 15
           selector:
             number:
@@ -110,18 +109,9 @@ blueprint:
       icon: mdi:home-minus
       collapsed: true
       input:
-        summer_mode:
-          name: Summer mode
-          description: Optional entity. On starts in Reduced but allows manual heating.
-          default: []
-          selector:
-            entity:
-              filter:
-                - domain: input_boolean
-                - domain: binary_sensor
         vacation_mode:
           name: Vacation mode
-          description: Optional entity. On starts in Reduced but allows manual heating.
+          description: Optional entity. On forces Reduced while automatic control is active.
           default: []
           selector:
             entity:
@@ -139,73 +129,100 @@ blueprint:
                 - domain: binary_sensor
 
     time_window_1:
-      name: Reduced time window 1
+      name: Time window 1
       icon: mdi:clock-outline
       collapsed: true
       input:
-        time_window_1_enabled:
-          name: Enable time window 1
-          description: Enables this daily Reduced period.
-          default: false
+        time_window_1_mode:
+          name: Mode
+          description: Temperature mode used while this time window is active.
+          default: neutral
           selector:
-            boolean:
+            select:
+              options:
+                - label: Neutral
+                  value: neutral
+                - label: Reduced
+                  value: reduced
+                - label: Eco
+                  value: eco
+                - label: Heat
+                  value: heat
         time_window_1_start:
           name: Start time
-          description: Time at which this Reduced period starts.
+          description: Time at which this window starts.
           default: "23:00:00"
           selector:
             time:
         time_window_1_end:
           name: End time
-          description: Time at which this Reduced period ends.
+          description: Time at which this window ends.
           default: "06:00:00"
           selector:
             time:
 
     time_window_2:
-      name: Reduced time window 2
+      name: Time window 2
       icon: mdi:clock-outline
       collapsed: true
       input:
-        time_window_2_enabled:
-          name: Enable time window 2
-          description: Enables this daily Reduced period.
-          default: false
+        time_window_2_mode:
+          name: Mode
+          description: Temperature mode used while this time window is active.
+          default: neutral
           selector:
-            boolean:
+            select:
+              options:
+                - label: Neutral
+                  value: neutral
+                - label: Reduced
+                  value: reduced
+                - label: Eco
+                  value: eco
+                - label: Heat
+                  value: heat
         time_window_2_start:
           name: Start time
-          description: Time at which this Reduced period starts.
+          description: Time at which this window starts.
           default: "09:00:00"
           selector:
             time:
         time_window_2_end:
           name: End time
-          description: Time at which this Reduced period ends.
+          description: Time at which this window ends.
           default: "12:00:00"
           selector:
             time:
 
     time_window_3:
-      name: Reduced time window 3
+      name: Time window 3
       icon: mdi:clock-outline
       collapsed: true
       input:
-        time_window_3_enabled:
-          name: Enable time window 3
-          description: Enables this daily Reduced period.
-          default: false
+        time_window_3_mode:
+          name: Mode
+          description: Temperature mode used while this time window is active.
+          default: neutral
           selector:
-            boolean:
+            select:
+              options:
+                - label: Neutral
+                  value: neutral
+                - label: Reduced
+                  value: reduced
+                - label: Eco
+                  value: eco
+                - label: Heat
+                  value: heat
         time_window_3_start:
           name: Start time
-          description: Time at which this Reduced period starts.
+          description: Time at which this window starts.
           default: "14:00:00"
           selector:
             time:
         time_window_3_end:
           name: End time
-          description: Time at which this Reduced period ends.
+          description: Time at which this window ends.
           default: "17:00:00"
           selector:
             time:
@@ -277,11 +294,8 @@ triggers:
     entity_id: !input automatic_control
     id: evaluate
   - trigger: state
-    entity_id: !input summer_mode
-    id: summer_mode_changed
-  - trigger: state
     entity_id: !input vacation_mode
-    id: vacation_mode_changed
+    id: evaluate
   - trigger: state
     entity_id: !input nobody_home
     id: evaluate
@@ -331,20 +345,19 @@ actions:
       desired_temperature_helper_entity: !input desired_temperature_helper
       heating_switch_entity: !input heating_switch
       automatic_control_entity: !input automatic_control
-      summer_mode_entity: !input summer_mode
       vacation_mode_entity: !input vacation_mode
       nobody_home_entity: !input nobody_home
       normal_temperature: !input normal_temperature
       eco_temperature: !input eco_temperature
       reduced_temperature: !input reduced_temperature
       temperature_step: 0.5
-      time_window_1_enabled: !input time_window_1_enabled
+      time_window_1_mode: !input time_window_1_mode
       time_window_1_start: !input time_window_1_start
       time_window_1_end: !input time_window_1_end
-      time_window_2_enabled: !input time_window_2_enabled
+      time_window_2_mode: !input time_window_2_mode
       time_window_2_start: !input time_window_2_start
       time_window_2_end: !input time_window_2_end
-      time_window_3_enabled: !input time_window_3_enabled
+      time_window_3_mode: !input time_window_3_mode
       time_window_3_start: !input time_window_3_start
       time_window_3_end: !input time_window_3_end
       safeguard_1_enabled: !input safeguard_1_enabled
@@ -355,39 +368,51 @@ actions:
       automatic_control_enabled: >-
         {{ automatic_control_entity | count == 0
            or is_state(automatic_control_entity, 'on') }}
-      summer_mode_active: >-
-        {{ summer_mode_entity | count > 0
-           and is_state(summer_mode_entity, 'on') }}
       vacation_mode_active: >-
         {{ vacation_mode_entity | count > 0
            and is_state(vacation_mode_entity, 'on') }}
-      seasonal_mode_active: >-
-        {{ automatic_control_enabled
-           and (summer_mode_active or vacation_mode_active) }}
       nobody_home_active: >-
         {{ nobody_home_entity | count > 0
            and is_state(nobody_home_entity, 'on') }}
       time_window_1_active: >-
         {% set start = today_at(time_window_1_start) %}
         {% set end = today_at(time_window_1_end) %}
-        {{ time_window_1_enabled
+        {{ time_window_1_mode != 'neutral'
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_2_active: >-
         {% set start = today_at(time_window_2_start) %}
         {% set end = today_at(time_window_2_end) %}
-        {{ time_window_2_enabled
+        {{ time_window_2_mode != 'neutral'
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_3_active: >-
         {% set start = today_at(time_window_3_start) %}
         {% set end = today_at(time_window_3_end) %}
-        {{ time_window_3_enabled
+        {{ time_window_3_mode != 'neutral'
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
+      active_time_window_mode: >-
+        {% if time_window_1_active %}
+          {{ time_window_1_mode }}
+        {% elif time_window_2_active %}
+          {{ time_window_2_mode }}
+        {% elif time_window_3_active %}
+          {{ time_window_3_mode }}
+        {% else %}
+          neutral
+        {% endif %}
+      forced_reduced_active: >-
+        {{ automatic_control_enabled
+           and (vacation_mode_active or nobody_home_active) }}
+      time_window_mode_active: >-
+        {{ automatic_control_enabled
+           and active_time_window_mode != 'neutral' }}
+      automatic_temperature_active: >-
+        {{ forced_reduced_active or time_window_mode_active }}
       stored_temperature_available: >-
         {{ has_value(desired_temperature_helper_entity) }}
       stored_temperature: >-
@@ -412,11 +437,6 @@ actions:
            if source_temperature_available else 0 %}
         {{ ((raw / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
-      seasonal_mode_activated: >-
-        {{ automatic_control_enabled
-           and trigger.id in ['summer_mode_changed', 'vacation_mode_changed']
-           and trigger.to_state is not none
-           and trigger.to_state.state == 'on' }}
       safeguard_check_due: >-
         {{ (trigger.id == 'safeguard_1'
             and safeguard_1_enabled)
@@ -442,37 +462,13 @@ actions:
            and trigger.to_state.context.parent_id is none }}
       manual_heating_switch_change: >-
         {{ heating_switch_change_is_external }}
-      seasonal_manual_temperature_change: >-
-        {{ seasonal_mode_active
-           and climate_change_is_external
-           and source_temperature_available
-           and source_temperature_is_current
-           and source_temperature | float
-               != reduced_temperature | float }}
-      seasonal_manual_override_active: >-
-        {{ seasonal_mode_active
-           and (is_state(heating_switch_entity, 'on')
-                or seasonal_manual_temperature_change) }}
-      reduced_mode_active: >-
-        {{ automatic_control_enabled
-           and (nobody_home_active
-                or (seasonal_mode_active
-                    and (not seasonal_manual_override_active
-                         or seasonal_mode_activated
-                         or safeguard_heating_active))
-                or (not seasonal_mode_active
-                    and (time_window_1_active
-                         or time_window_2_active
-                         or time_window_3_active))) }}
       requested_temperature_available: >-
         {{ (climate_change_triggered
             and climate_change_is_external
             and source_temperature_available
             and source_temperature_is_current
-            and (not reduced_mode_active
-                 or seasonal_manual_temperature_change))
+            and not automatic_temperature_active)
            or manual_heating_switch_change
-           or seasonal_mode_activated
            or safeguard_heating_active
            or stored_temperature_available }}
       requested_temperature: >-
@@ -480,14 +476,13 @@ actions:
               and climate_change_is_external
               and source_temperature_available
               and source_temperature_is_current
-              and (not reduced_mode_active
-                   or seasonal_manual_temperature_change) %}
+              and not automatic_temperature_active %}
           {{ source_temperature }}
         {% elif manual_heating_switch_change %}
           {{ normal_temperature | float
              if is_state(heating_switch_entity, 'on')
              else eco_temperature | float }}
-        {% elif seasonal_mode_activated or safeguard_heating_active %}
+        {% elif safeguard_heating_active %}
           {{ eco_temperature | float }}
         {% else %}
           {{ stored_temperature }}
@@ -496,15 +491,25 @@ actions:
         {{ ((requested_temperature | float / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
       effective_temperature_available: >-
-        {{ reduced_mode_active or requested_temperature_available }}
+        {{ automatic_temperature_active or requested_temperature_available }}
       effective_temperature: >-
-        {% set raw = reduced_temperature | float
-           if reduced_mode_active else normalized_requested_temperature | float %}
+        {% if forced_reduced_active
+              or (time_window_mode_active
+                  and active_time_window_mode == 'reduced') %}
+          {% set raw = reduced_temperature | float %}
+        {% elif time_window_mode_active
+                and active_time_window_mode == 'eco' %}
+          {% set raw = eco_temperature | float %}
+        {% elif time_window_mode_active
+                and active_time_window_mode == 'heat' %}
+          {% set raw = normal_temperature | float %}
+        {% else %}
+          {% set raw = normalized_requested_temperature | float %}
+        {% endif %}
         {{ ((raw / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
       desired_heating_switch_on: >-
-        {{ not seasonal_mode_activated
-           and not safeguard_heating_active
+        {{ not safeguard_heating_active
            and requested_temperature_available
            and normalized_requested_temperature > eco_temperature | float }}
       all_climate_entities: >-
