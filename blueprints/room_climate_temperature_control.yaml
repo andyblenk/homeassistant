@@ -1,7 +1,7 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.6.1
+    Version 0.7.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
@@ -61,15 +61,6 @@ blueprint:
             entity:
               filter:
                 - domain: input_boolean
-        automatic_control:
-          name: Automatic temperature control
-          description: Optional Input Boolean. Empty means automatic control is enabled.
-          default: []
-          selector:
-            entity:
-              filter:
-                - domain: input_boolean
-
     temperatures:
       name: Temperatures
       icon: mdi:thermometer
@@ -125,7 +116,7 @@ blueprint:
       input:
         vacation_mode:
           name: Vacation mode
-          description: Optional entity. On forces Reduced while automatic control is active.
+          description: Optional entity. On forces Reduced unless manually overridden.
           default: []
           selector:
             entity:
@@ -134,7 +125,7 @@ blueprint:
                 - domain: binary_sensor
         nobody_home:
           name: Nobody at home
-          description: Optional entity. On forces Reduced while automatic control is active.
+          description: Optional entity. On forces Reduced unless manually overridden.
           default: []
           selector:
             entity:
@@ -369,9 +360,6 @@ triggers:
     entity_id: !input heating_switch
     id: heating_switch_changed
   - trigger: state
-    entity_id: !input automatic_control
-    id: evaluate
-  - trigger: state
     entity_id: !input vacation_mode
     id: vacation_mode_changed
   - trigger: state
@@ -379,28 +367,28 @@ triggers:
     id: nobody_home_changed
   - trigger: state
     entity_id: !input comfort_condition_entities
-    id: evaluate
+    id: comfort_condition_changed
   - trigger: time
     at: !input time_window_1_start
-    id: evaluate
+    id: time_window_1_started
   - trigger: time
     at: !input time_window_1_end
     id: evaluate
   - trigger: time
     at: !input time_window_2_start
-    id: evaluate
+    id: time_window_2_started
   - trigger: time
     at: !input time_window_2_end
     id: evaluate
   - trigger: time
     at: !input time_window_3_start
-    id: evaluate
+    id: time_window_3_started
   - trigger: time
     at: !input time_window_3_end
     id: evaluate
   - trigger: time
     at: !input time_window_4_start
-    id: evaluate
+    id: time_window_4_started
   - trigger: time
     at: !input time_window_4_end
     id: evaluate
@@ -431,7 +419,6 @@ actions:
       synchronized_climate_entities: !input synchronized_climates
       desired_temperature_helper_entity: !input desired_temperature_helper
       heating_switch_entity: !input heating_switch
-      automatic_control_entity: !input automatic_control
       vacation_mode_entity: !input vacation_mode
       nobody_home_entity: !input nobody_home
       normal_temperature: !input normal_temperature
@@ -461,9 +448,6 @@ actions:
       safeguard_3_enabled: !input safeguard_3_enabled
       safeguard_blocker: !input safeguard_blocker
       sync_tolerance: 0.01
-      automatic_control_enabled: >-
-        {{ automatic_control_entity | count == 0
-           or is_state(automatic_control_entity, 'on') }}
       vacation_mode_active: >-
         {{ vacation_mode_entity | count > 0
            and is_state(vacation_mode_entity, 'on') }}
@@ -521,16 +505,49 @@ actions:
         {% else %}
           neutral
         {% endif %}
+      active_time_window_started_timestamp: >-
+        {% set ns = namespace(starts=[]) %}
+        {% set current = as_timestamp(now()) %}
+        {% for active, start_value, end_value in [
+             (time_window_1_active, time_window_1_start, time_window_1_end),
+             (time_window_2_active, time_window_2_start, time_window_2_end),
+             (time_window_3_active, time_window_3_start, time_window_3_end),
+             (time_window_4_active, time_window_4_start, time_window_4_end)] %}
+          {% if active %}
+            {% set start = as_timestamp(today_at(start_value)) %}
+            {% set end = as_timestamp(today_at(end_value)) %}
+            {% if start > end and current < end %}
+              {% set start = start - 86400 %}
+            {% endif %}
+            {% set ns.starts = ns.starts + [start] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.starts | max if ns.starts | count > 0 else 0 }}
       comfort_mode_active: >-
-        {{ automatic_control_enabled
-           and (expand(comfort_condition_entities)
-                | selectattr('state', 'eq', 'on') | list | count > 0) }}
+        {{ expand(comfort_condition_entities)
+           | selectattr('state', 'eq', 'on') | list | count > 0 }}
+      time_window_config_active: >-
+        {{ active_time_window_mode != 'neutral' }}
+      time_window_target_temperature: >-
+        {% if active_time_window_mode == 'reduced' %}
+          {{ reduced_temperature | float }}
+        {% elif active_time_window_mode == 'eco' %}
+          {{ eco_temperature | float }}
+        {% elif active_time_window_mode == 'heat' %}
+          {{ comfort_temperature | float
+             if comfort_mode_active else normal_temperature | float }}
+        {% else %}
+          0
+        {% endif %}
+      time_window_reset_triggered: >-
+        {{ (trigger.id == 'time_window_1_started' and time_window_1_active)
+           or (trigger.id == 'time_window_2_started' and time_window_2_active)
+           or (trigger.id == 'time_window_3_started' and time_window_3_active)
+           or (trigger.id == 'time_window_4_started' and time_window_4_active) }}
       away_mode_active: >-
-        {{ automatic_control_enabled
-           and (vacation_mode_active or nobody_home_active) }}
+        {{ vacation_mode_active or nobody_home_active }}
       away_mode_activated: >-
-        {{ automatic_control_enabled
-           and trigger.id in ['vacation_mode_changed', 'nobody_home_changed']
+        {{ trigger.id in ['vacation_mode_changed', 'nobody_home_changed']
            and trigger.to_state is not none
            and trigger.to_state.state == 'on' }}
       stored_temperature_available: >-
@@ -582,6 +599,44 @@ actions:
            and trigger.to_state.context.parent_id is none }}
       manual_heating_switch_change: >-
         {{ heating_switch_change_is_external }}
+      manual_time_window_temperature_change: >-
+        {{ time_window_config_active
+           and climate_change_is_external
+           and source_temperature_available
+           and source_temperature_is_current }}
+      manual_time_window_change: >-
+        {{ time_window_config_active
+           and (manual_time_window_temperature_change
+                or manual_heating_switch_change) }}
+      time_window_override_inferred: >-
+        {% set ns = namespace(manual_climate=false) %}
+        {% for climate_entity in
+             ([master_climate_entity] + synchronized_climate_entities) %}
+          {% if state_attr(climate_entity, 'temperature') is number
+                and ((state_attr(climate_entity, 'temperature') | float
+                      - stored_temperature | float) | abs < 0.01)
+                and states[climate_entity].context.parent_id is none
+                and as_timestamp(states[climate_entity].last_updated)
+                    >= active_time_window_started_timestamp | float %}
+            {% set ns.manual_climate = true %}
+          {% endif %}
+        {% endfor %}
+        {{ time_window_config_active
+           and stored_temperature_available
+           and state_attr(master_climate_entity, 'temperature') is number
+           and ((state_attr(master_climate_entity, 'temperature') | float
+                 - stored_temperature | float) | abs < 0.01)
+           and ((state_attr(master_climate_entity, 'temperature') | float
+                 - time_window_target_temperature | float) | abs >= 0.01)
+           and (as_timestamp(states[desired_temperature_helper_entity].last_updated)
+                    >= active_time_window_started_timestamp | float
+                or as_timestamp(states[heating_switch_entity].last_updated)
+                    >= active_time_window_started_timestamp | float
+                or ns.manual_climate) }}
+      time_window_override_active: >-
+        {{ time_window_config_active
+           and not time_window_reset_triggered
+           and (manual_time_window_change or time_window_override_inferred) }}
       manual_away_temperature_change: >-
         {{ away_mode_active
            and climate_change_is_external
@@ -600,9 +655,9 @@ actions:
       forced_reduced_active: >-
         {{ away_mode_active and not manual_preheat_active }}
       time_window_mode_active: >-
-        {{ automatic_control_enabled
-           and not manual_preheat_active
-           and active_time_window_mode != 'neutral' }}
+        {{ not manual_preheat_active
+           and time_window_config_active
+           and not time_window_override_active }}
       automatic_temperature_active: >-
         {{ forced_reduced_active or time_window_mode_active }}
       requested_temperature_available: >-
@@ -612,7 +667,8 @@ actions:
             and source_temperature_is_current
             and ((not away_mode_active
                   and not automatic_temperature_active)
-                 or manual_away_temperature_change))
+                 or manual_away_temperature_change
+                 or manual_time_window_temperature_change))
            or manual_heating_switch_change
            or safeguard_heating_active
            or stored_temperature_available }}
@@ -623,7 +679,8 @@ actions:
               and source_temperature_is_current
               and ((not away_mode_active
                     and not automatic_temperature_active)
-                   or manual_away_temperature_change) %}
+                   or manual_away_temperature_change
+                   or manual_time_window_temperature_change) %}
           {{ source_temperature }}
         {% elif manual_heating_switch_change %}
           {{ normal_temperature | float
