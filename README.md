@@ -87,6 +87,6 @@ Inputs:
 - Desired-temperature Input Number
 - Heating/Eco Input Boolean
 - Optional automatic-control Input Boolean
-- Normal, Eco, Reduced, and synchronization-step temperatures
-- Optional summer/vacation and nobody-home entities
+- Normal, Eco, and Reduced temperatures
+- Optional summer-mode, vacation-mode, and nobody-home entities
 - Up to three optional Reduced time windows

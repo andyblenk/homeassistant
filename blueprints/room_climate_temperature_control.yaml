@@ -102,25 +102,22 @@ blueprint:
               step: 0.5
               unit_of_measurement: °C
               mode: box
-        temperature_step:
-          name: Temperature step
-          description: Temperatures are rounded to this common thermostat step.
-          default: 0.5
-          selector:
-            number:
-              min: 0.1
-              max: 2
-              step: 0.1
-              unit_of_measurement: °C
-              mode: box
-
     reduced_conditions:
       name: Reduced conditions
       icon: mdi:home-minus
       collapsed: true
       input:
-        summer_or_vacation_mode:
-          name: Summer or vacation mode
+        summer_mode:
+          name: Summer mode
+          description: Optional entity. On forces Reduced while automatic control is active.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+        vacation_mode:
+          name: Vacation mode
           description: Optional entity. On forces Reduced while automatic control is active.
           default: []
           selector:
@@ -229,7 +226,10 @@ triggers:
     entity_id: !input automatic_control
     id: evaluate
   - trigger: state
-    entity_id: !input summer_or_vacation_mode
+    entity_id: !input summer_mode
+    id: evaluate
+  - trigger: state
+    entity_id: !input vacation_mode
     id: evaluate
   - trigger: state
     entity_id: !input nobody_home
@@ -271,12 +271,13 @@ actions:
       desired_temperature_helper_entity: !input desired_temperature_helper
       heating_switch_entity: !input heating_switch
       automatic_control_entity: !input automatic_control
-      summer_or_vacation_mode_entity: !input summer_or_vacation_mode
+      summer_mode_entity: !input summer_mode
+      vacation_mode_entity: !input vacation_mode
       nobody_home_entity: !input nobody_home
       normal_temperature: !input normal_temperature
       eco_temperature: !input eco_temperature
       reduced_temperature: !input reduced_temperature
-      temperature_step: !input temperature_step
+      temperature_step: 0.5
       time_window_1_enabled: !input time_window_1_enabled
       time_window_1_start: !input time_window_1_start
       time_window_1_end: !input time_window_1_end
@@ -290,9 +291,12 @@ actions:
       automatic_control_enabled: >-
         {{ automatic_control_entity | count == 0
            or is_state(automatic_control_entity, 'on') }}
-      summer_or_vacation_active: >-
-        {{ summer_or_vacation_mode_entity | count > 0
-           and is_state(summer_or_vacation_mode_entity, 'on') }}
+      summer_mode_active: >-
+        {{ summer_mode_entity | count > 0
+           and is_state(summer_mode_entity, 'on') }}
+      vacation_mode_active: >-
+        {{ vacation_mode_entity | count > 0
+           and is_state(vacation_mode_entity, 'on') }}
       nobody_home_active: >-
         {{ nobody_home_entity | count > 0
            and is_state(nobody_home_entity, 'on') }}
@@ -319,7 +323,8 @@ actions:
                 or (start > end and (now() >= start or now() < end))) }}
       reduced_mode_active: >-
         {{ automatic_control_enabled
-           and (summer_or_vacation_active
+           and (summer_mode_active
+                or vacation_mode_active
                 or nobody_home_active
                 or time_window_1_active
                 or time_window_2_active
