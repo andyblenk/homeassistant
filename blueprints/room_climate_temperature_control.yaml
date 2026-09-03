@@ -1,15 +1,14 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.7.0
+    Version 0.8.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
 
     Manual temperature changes are stored as the room's desired temperature.
-    Automatic control applies Reduced during vacation or absence but allows
-    deliberate preheating from any synchronized thermostat or Heating / Eco
-    switch. Optional
+    Configured conditions can apply Reduced but still allow deliberate
+    preheating from any synchronized thermostat or Heating / Eco switch. Optional
     conditions can use Comfort instead of Normal. Up to four daily time windows
     can apply Reduced, Eco, or Heat. Up to three optional safeguard checks can
     end heating that was left enabled.
@@ -114,21 +113,13 @@ blueprint:
       icon: mdi:home-minus
       collapsed: true
       input:
-        vacation_mode:
-          name: Vacation mode
-          description: Optional entity. On forces Reduced unless manually overridden.
+        reduced_condition_entities:
+          name: Reduced conditions
+          description: Optional entities, for example vacation or nobody at home. Any on state activates Reduced.
           default: []
           selector:
             entity:
-              filter:
-                - domain: input_boolean
-                - domain: binary_sensor
-        nobody_home:
-          name: Nobody at home
-          description: Optional entity. On forces Reduced unless manually overridden.
-          default: []
-          selector:
-            entity:
+              multiple: true
               filter:
                 - domain: input_boolean
                 - domain: binary_sensor
@@ -360,11 +351,8 @@ triggers:
     entity_id: !input heating_switch
     id: heating_switch_changed
   - trigger: state
-    entity_id: !input vacation_mode
-    id: vacation_mode_changed
-  - trigger: state
-    entity_id: !input nobody_home
-    id: nobody_home_changed
+    entity_id: !input reduced_condition_entities
+    id: reduced_condition_changed
   - trigger: state
     entity_id: !input comfort_condition_entities
     id: comfort_condition_changed
@@ -419,8 +407,7 @@ actions:
       synchronized_climate_entities: !input synchronized_climates
       desired_temperature_helper_entity: !input desired_temperature_helper
       heating_switch_entity: !input heating_switch
-      vacation_mode_entity: !input vacation_mode
-      nobody_home_entity: !input nobody_home
+      reduced_condition_entities: !input reduced_condition_entities
       normal_temperature: !input normal_temperature
       comfort_temperature: !input comfort_temperature
       eco_temperature: !input eco_temperature
@@ -448,12 +435,9 @@ actions:
       safeguard_3_enabled: !input safeguard_3_enabled
       safeguard_blocker: !input safeguard_blocker
       sync_tolerance: 0.01
-      vacation_mode_active: >-
-        {{ vacation_mode_entity | count > 0
-           and is_state(vacation_mode_entity, 'on') }}
-      nobody_home_active: >-
-        {{ nobody_home_entity | count > 0
-           and is_state(nobody_home_entity, 'on') }}
+      reduced_condition_active: >-
+        {{ expand(reduced_condition_entities)
+           | selectattr('state', 'eq', 'on') | list | count > 0 }}
       time_window_1_active: >-
         {% set start = today_at(time_window_1_start) %}
         {% set end = today_at(time_window_1_end) %}
@@ -544,10 +528,8 @@ actions:
            or (trigger.id == 'time_window_2_started' and time_window_2_active)
            or (trigger.id == 'time_window_3_started' and time_window_3_active)
            or (trigger.id == 'time_window_4_started' and time_window_4_active) }}
-      away_mode_active: >-
-        {{ vacation_mode_active or nobody_home_active }}
-      away_mode_activated: >-
-        {{ trigger.id in ['vacation_mode_changed', 'nobody_home_changed']
+      reduced_condition_activated: >-
+        {{ trigger.id == 'reduced_condition_changed'
            and trigger.to_state is not none
            and trigger.to_state.state == 'on' }}
       stored_temperature_available: >-
@@ -637,23 +619,23 @@ actions:
         {{ time_window_config_active
            and not time_window_reset_triggered
            and (manual_time_window_change or time_window_override_inferred) }}
-      manual_away_temperature_change: >-
-        {{ away_mode_active
+      manual_reduced_temperature_change: >-
+        {{ reduced_condition_active
            and climate_change_is_external
            and source_temperature_available
            and source_temperature_is_current }}
       manual_preheat_temperature_change: >-
-        {{ manual_away_temperature_change
+        {{ manual_reduced_temperature_change
            and source_temperature | float > eco_temperature | float }}
       manual_preheat_active: >-
-        {{ away_mode_active
-           and not away_mode_activated
+        {{ reduced_condition_active
+           and not reduced_condition_activated
            and not safeguard_heating_active
            and (manual_preheat_temperature_change
                 or (is_state(heating_switch_entity, 'on')
-                    and not manual_away_temperature_change)) }}
+                    and not manual_reduced_temperature_change)) }}
       forced_reduced_active: >-
-        {{ away_mode_active and not manual_preheat_active }}
+        {{ reduced_condition_active and not manual_preheat_active }}
       time_window_mode_active: >-
         {{ not manual_preheat_active
            and time_window_config_active
@@ -665,9 +647,9 @@ actions:
             and climate_change_is_external
             and source_temperature_available
             and source_temperature_is_current
-            and ((not away_mode_active
+            and ((not reduced_condition_active
                   and not automatic_temperature_active)
-                 or manual_away_temperature_change
+                 or manual_reduced_temperature_change
                  or manual_time_window_temperature_change))
            or manual_heating_switch_change
            or safeguard_heating_active
@@ -677,9 +659,9 @@ actions:
               and climate_change_is_external
               and source_temperature_available
               and source_temperature_is_current
-              and ((not away_mode_active
+              and ((not reduced_condition_active
                     and not automatic_temperature_active)
-                   or manual_away_temperature_change
+                   or manual_reduced_temperature_change
                    or manual_time_window_temperature_change) %}
           {{ source_temperature }}
         {% elif manual_heating_switch_change %}
@@ -719,10 +701,10 @@ actions:
             * temperature_step | float) | round(2) }}
       desired_heating_switch_on: >-
         {{ not safeguard_heating_active
-           and not away_mode_activated
+           and not reduced_condition_activated
            and requested_temperature_available
            and normalized_requested_temperature > eco_temperature | float
-           and (not away_mode_active or manual_preheat_active) }}
+           and (not reduced_condition_active or manual_preheat_active) }}
       all_climate_entities: >-
         {{ ([master_climate_entity] + synchronized_climate_entities)
            | unique | list }}

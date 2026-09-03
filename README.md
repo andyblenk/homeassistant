@@ -80,14 +80,14 @@ Path: `blueprints/room_climate_temperature_control.yaml`
 
 Controls the target temperature of one room. A Home Assistant Climate entity acts as the master and synchronizes target-temperature changes bidirectionally with optional additional wall or hardware thermostats. Only target temperatures are synchronized; HVAC modes, presets, and measured temperatures remain untouched.
 
-Manual changes from any connected thermostat are rounded to a common step, stored in an Input Number, and distributed to the other thermostats without creating synchronization loops. Vacation and absence apply Reduced. Deliberate preheating can override them through any synchronized thermostat or the Heating/Eco switch. Optional Comfort conditions replace Normal with Comfort. Up to four optional daily time windows can independently apply Reduced, Eco, or Heat. A manual temperature or Heating/Eco change overrides only the currently active time window; the next window starts normally.
+Manual changes from any connected thermostat are rounded to a common step, stored in an Input Number, and distributed to the other thermostats without creating synchronization loops. Selected Reduced conditions, such as vacation or nobody at home, apply Reduced. Deliberate preheating can override them through any synchronized thermostat or the Heating/Eco switch. Optional Comfort conditions replace Normal with Comfort. Up to four optional daily time windows can independently apply Reduced, Eco, or Heat. A manual temperature or Heating/Eco change overrides only the currently active time window; the next window starts normally.
 
 Inputs:
 - Master Climate entity and optional additional Climate thermostats
 - Desired-temperature Input Number
 - Heating/Eco Input Boolean
 - Normal, Comfort, Eco, and Reduced temperatures
-- Optional vacation-mode and nobody-home entities
+- Optional Reduced-condition entities
 - Optional Comfort-condition entities
 - Up to four optional time windows using Reduced, Eco, or Heat
 - Up to three optional heating safeguard times with one shared blocker entity
