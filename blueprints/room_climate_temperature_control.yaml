@@ -1,7 +1,7 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.10.0
+    Version 0.10.1
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
@@ -116,7 +116,7 @@ blueprint:
       input:
         reduced_condition_entities:
           name: Reduced conditions
-          description: Optional entities, for example vacation or nobody at home. Any on state activates Reduced.
+          description: Optional Boolean, binary sensor, or timer entities. On or active applies Reduced.
           default: []
           selector:
             entity:
@@ -124,6 +124,7 @@ blueprint:
               filter:
                 - domain: input_boolean
                 - domain: binary_sensor
+                - domain: timer
 
     comfort_conditions:
       name: Comfort conditions
@@ -535,8 +536,10 @@ actions:
       safeguard_blocker: !input safeguard_blocker
       sync_tolerance: 0.01
       reduced_condition_active: >-
-        {{ expand(reduced_condition_entities)
-           | selectattr('state', 'eq', 'on') | list | count > 0 }}
+        {{ (expand(reduced_condition_entities)
+            | selectattr('state', 'eq', 'on') | list | count > 0)
+           or (expand(reduced_condition_entities)
+               | selectattr('state', 'eq', 'active') | list | count > 0) }}
       time_window_1_active: >-
         {% set start = today_at(time_window_1_start) %}
         {% set end = today_at(time_window_1_end) %}
@@ -672,7 +675,7 @@ actions:
       reduced_condition_activated: >-
         {{ trigger.id == 'reduced_condition_changed'
            and trigger.to_state is not none
-           and trigger.to_state.state == 'on' }}
+           and trigger.to_state.state in ['on', 'active'] }}
       stored_temperature_available: >-
         {{ has_value(desired_temperature_helper_entity) }}
       stored_temperature: >-

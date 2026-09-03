@@ -90,7 +90,7 @@ Inputs:
 - Desired-temperature Input Number
 - Heating/Eco Input Boolean
 - Normal, Comfort, Eco, and Reduced temperatures
-- Optional Reduced-condition entities
+- Optional Reduced-condition Boolean, binary-sensor, and Timer entities
 - Optional Comfort-condition entities
 - Up to four optional weekday-aware time windows using Reduced, Eco, or Heat
 - Up to three optional heating safeguard times with one shared blocker entity
