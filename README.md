@@ -70,7 +70,7 @@ Inputs:
 - Electric-heater and target-temperature Climate entities
 - Room temperature sensor
 - Optional automatic-control Input Boolean
-- Presence entity and window sensor
+- Presence entity and optional window sensor
 - Optional continuous-heating Timer
 - Low, medium, and optional high presets with temperature thresholds
 - Optional PV-power and battery sensors with thresholds
