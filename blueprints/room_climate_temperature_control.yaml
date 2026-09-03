@@ -1,13 +1,13 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.3.0
+    Version 0.4.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
 
     Manual temperature changes are stored as the room's desired temperature.
-    Automatic control can apply Reduced during vacation or absence. Up to three
+    Automatic control can apply Reduced during vacation or absence. Up to four
     optional daily time windows can apply Reduced, Eco, or Heat. Up to three
     optional safeguard checks can end heating that was left enabled.
 
@@ -133,15 +133,19 @@ blueprint:
       icon: mdi:clock-outline
       collapsed: true
       input:
+        time_window_1_enabled:
+          name: Enable time window
+          description: Enables this daily time window.
+          default: false
+          selector:
+            boolean:
         time_window_1_mode:
           name: Mode
           description: Temperature mode used while this time window is active.
-          default: neutral
+          default: reduced
           selector:
             select:
               options:
-                - label: Neutral
-                  value: neutral
                 - label: Reduced
                   value: reduced
                 - label: Eco
@@ -166,15 +170,19 @@ blueprint:
       icon: mdi:clock-outline
       collapsed: true
       input:
+        time_window_2_enabled:
+          name: Enable time window
+          description: Enables this daily time window.
+          default: false
+          selector:
+            boolean:
         time_window_2_mode:
           name: Mode
           description: Temperature mode used while this time window is active.
-          default: neutral
+          default: reduced
           selector:
             select:
               options:
-                - label: Neutral
-                  value: neutral
                 - label: Reduced
                   value: reduced
                 - label: Eco
@@ -199,15 +207,19 @@ blueprint:
       icon: mdi:clock-outline
       collapsed: true
       input:
+        time_window_3_enabled:
+          name: Enable time window
+          description: Enables this daily time window.
+          default: false
+          selector:
+            boolean:
         time_window_3_mode:
           name: Mode
           description: Temperature mode used while this time window is active.
-          default: neutral
+          default: reduced
           selector:
             select:
               options:
-                - label: Neutral
-                  value: neutral
                 - label: Reduced
                   value: reduced
                 - label: Eco
@@ -224,6 +236,43 @@ blueprint:
           name: End time
           description: Time at which this window ends.
           default: "17:00:00"
+          selector:
+            time:
+
+    time_window_4:
+      name: Time window 4
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        time_window_4_enabled:
+          name: Enable time window
+          description: Enables this daily time window.
+          default: false
+          selector:
+            boolean:
+        time_window_4_mode:
+          name: Mode
+          description: Temperature mode used while this time window is active.
+          default: reduced
+          selector:
+            select:
+              options:
+                - label: Reduced
+                  value: reduced
+                - label: Eco
+                  value: eco
+                - label: Heat
+                  value: heat
+        time_window_4_start:
+          name: Start time
+          description: Time at which this window starts.
+          default: "18:00:00"
+          selector:
+            time:
+        time_window_4_end:
+          name: End time
+          description: Time at which this window ends.
+          default: "22:00:00"
           selector:
             time:
 
@@ -318,6 +367,12 @@ triggers:
     at: !input time_window_3_end
     id: evaluate
   - trigger: time
+    at: !input time_window_4_start
+    id: evaluate
+  - trigger: time
+    at: !input time_window_4_end
+    id: evaluate
+  - trigger: time
     at: !input safeguard_1_time
     id: safeguard_1
   - trigger: time
@@ -351,15 +406,22 @@ actions:
       eco_temperature: !input eco_temperature
       reduced_temperature: !input reduced_temperature
       temperature_step: 0.5
+      time_window_1_enabled: !input time_window_1_enabled
       time_window_1_mode: !input time_window_1_mode
       time_window_1_start: !input time_window_1_start
       time_window_1_end: !input time_window_1_end
+      time_window_2_enabled: !input time_window_2_enabled
       time_window_2_mode: !input time_window_2_mode
       time_window_2_start: !input time_window_2_start
       time_window_2_end: !input time_window_2_end
+      time_window_3_enabled: !input time_window_3_enabled
       time_window_3_mode: !input time_window_3_mode
       time_window_3_start: !input time_window_3_start
       time_window_3_end: !input time_window_3_end
+      time_window_4_enabled: !input time_window_4_enabled
+      time_window_4_mode: !input time_window_4_mode
+      time_window_4_start: !input time_window_4_start
+      time_window_4_end: !input time_window_4_end
       safeguard_1_enabled: !input safeguard_1_enabled
       safeguard_2_enabled: !input safeguard_2_enabled
       safeguard_3_enabled: !input safeguard_3_enabled
@@ -377,21 +439,28 @@ actions:
       time_window_1_active: >-
         {% set start = today_at(time_window_1_start) %}
         {% set end = today_at(time_window_1_end) %}
-        {{ time_window_1_mode != 'neutral'
+        {{ time_window_1_enabled
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_2_active: >-
         {% set start = today_at(time_window_2_start) %}
         {% set end = today_at(time_window_2_end) %}
-        {{ time_window_2_mode != 'neutral'
+        {{ time_window_2_enabled
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_3_active: >-
         {% set start = today_at(time_window_3_start) %}
         {% set end = today_at(time_window_3_end) %}
-        {{ time_window_3_mode != 'neutral'
+        {{ time_window_3_enabled
+           and start != end
+           and ((start < end and start <= now() < end)
+                or (start > end and (now() >= start or now() < end))) }}
+      time_window_4_active: >-
+        {% set start = today_at(time_window_4_start) %}
+        {% set end = today_at(time_window_4_end) %}
+        {{ time_window_4_enabled
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
@@ -402,6 +471,8 @@ actions:
           {{ time_window_2_mode }}
         {% elif time_window_3_active %}
           {{ time_window_3_mode }}
+        {% elif time_window_4_active %}
+          {{ time_window_4_mode }}
         {% else %}
           neutral
         {% endif %}
