@@ -1,14 +1,14 @@
 blueprint:
   name: Viessmann heating control
   description: >-
-    Version 0.1.0
+    Version 0.2.0
 
     Controls a Viessmann heating system through its ViCare operating modes.
-    Reduced conditions use forcedReduced, which disables domestic hot water.
+    Away conditions use standby to disable heating and domestic hot water.
     Summer conditions use dhw for domestic hot water only. Otherwise,
     dhwAndHeating restores normal scheduled operation.
 
-    Reduced conditions have priority over summer conditions. A ViCare action is
+    Away conditions have priority over summer conditions. A ViCare action is
     sent only when the requested mode differs from active_vicare_mode.
   domain: automation
   author: Andreas Blenk
@@ -29,13 +29,13 @@ blueprint:
                 - domain: climate
 
     reduced_conditions:
-      name: Reduced conditions
+      name: Away / off conditions
       icon: mdi:home-off
       collapsed: true
       input:
         reduced_condition_entities:
-          name: Reduced conditions
-          description: Optional entities, for example nobody at home or vacation.
+          name: Away conditions
+          description: Optional entities, for example nobody at home or vacation. Any on or active state selects standby.
           default: []
           selector:
             entity:
@@ -81,7 +81,7 @@ actions:
       heating_climate_entity: !input heating_climate
       reduced_condition_entities: !input reduced_condition_entities
       summer_condition_entities: !input summer_condition_entities
-      reduced_active: >-
+      away_active: >-
         {{ (expand(reduced_condition_entities)
             | selectattr('state', 'eq', 'on') | list | count > 0)
            or (expand(reduced_condition_entities)
@@ -92,8 +92,8 @@ actions:
            or (expand(summer_condition_entities)
                | selectattr('state', 'eq', 'active') | list | count > 0) }}
       requested_vicare_mode: >-
-        {% if reduced_active %}
-          forcedReduced
+        {% if away_active %}
+          standby
         {% elif summer_active %}
           dhw
         {% else %}
