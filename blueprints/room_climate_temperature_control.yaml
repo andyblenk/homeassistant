@@ -1,15 +1,16 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.4.0
+    Version 0.5.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
 
     Manual temperature changes are stored as the room's desired temperature.
-    Automatic control can apply Reduced during vacation or absence. Up to four
-    optional daily time windows can apply Reduced, Eco, or Heat. Up to three
-    optional safeguard checks can end heating that was left enabled.
+    Automatic control can apply Reduced during vacation or absence. Optional
+    conditions can use Comfort instead of Normal. Up to four daily time windows
+    can apply Reduced, Eco, or Heat. Up to three optional safeguard checks can
+    end heating that was left enabled.
 
     Only target temperatures are synchronized. HVAC modes, presets, and measured
     temperatures are not changed.
@@ -82,6 +83,17 @@ blueprint:
               step: 0.5
               unit_of_measurement: °C
               mode: box
+        comfort_temperature:
+          name: Comfort temperature
+          description: Used instead of Normal while a Comfort condition is active.
+          default: 23
+          selector:
+            number:
+              min: 5
+              max: 35
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
         eco_temperature:
           name: Eco temperature
           description: Loaded when the Heating / Eco switch is turned off manually.
@@ -128,6 +140,21 @@ blueprint:
                 - domain: input_boolean
                 - domain: binary_sensor
 
+    comfort_conditions:
+      name: Comfort conditions
+      icon: mdi:thermometer-plus
+      collapsed: true
+      input:
+        comfort_condition_entities:
+          name: Comfort conditions
+          description: Optional entities. Comfort is active while any entity is on.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
     time_window_1:
       name: Time window 1
       icon: mdi:clock-outline
@@ -348,6 +375,9 @@ triggers:
   - trigger: state
     entity_id: !input nobody_home
     id: evaluate
+  - trigger: state
+    entity_id: !input comfort_condition_entities
+    id: evaluate
   - trigger: time
     at: !input time_window_1_start
     id: evaluate
@@ -403,8 +433,10 @@ actions:
       vacation_mode_entity: !input vacation_mode
       nobody_home_entity: !input nobody_home
       normal_temperature: !input normal_temperature
+      comfort_temperature: !input comfort_temperature
       eco_temperature: !input eco_temperature
       reduced_temperature: !input reduced_temperature
+      comfort_condition_entities: !input comfort_condition_entities
       temperature_step: 0.5
       time_window_1_enabled: !input time_window_1_enabled
       time_window_1_mode: !input time_window_1_mode
@@ -465,14 +497,25 @@ actions:
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       active_time_window_mode: >-
+        {% set active_modes = [] %}
         {% if time_window_1_active %}
-          {{ time_window_1_mode }}
-        {% elif time_window_2_active %}
-          {{ time_window_2_mode }}
-        {% elif time_window_3_active %}
-          {{ time_window_3_mode }}
-        {% elif time_window_4_active %}
-          {{ time_window_4_mode }}
+          {% set active_modes = active_modes + [time_window_1_mode] %}
+        {% endif %}
+        {% if time_window_2_active %}
+          {% set active_modes = active_modes + [time_window_2_mode] %}
+        {% endif %}
+        {% if time_window_3_active %}
+          {% set active_modes = active_modes + [time_window_3_mode] %}
+        {% endif %}
+        {% if time_window_4_active %}
+          {% set active_modes = active_modes + [time_window_4_mode] %}
+        {% endif %}
+        {% if 'reduced' in active_modes %}
+          reduced
+        {% elif 'eco' in active_modes %}
+          eco
+        {% elif 'heat' in active_modes %}
+          heat
         {% else %}
           neutral
         {% endif %}
@@ -482,6 +525,10 @@ actions:
       time_window_mode_active: >-
         {{ automatic_control_enabled
            and active_time_window_mode != 'neutral' }}
+      comfort_mode_active: >-
+        {{ automatic_control_enabled
+           and (expand(comfort_condition_entities)
+                | selectattr('state', 'eq', 'on') | list | count > 0) }}
       automatic_temperature_active: >-
         {{ forced_reduced_active or time_window_mode_active }}
       stored_temperature_available: >-
@@ -573,7 +620,12 @@ actions:
           {% set raw = eco_temperature | float %}
         {% elif time_window_mode_active
                 and active_time_window_mode == 'heat' %}
-          {% set raw = normal_temperature | float %}
+          {% set raw = comfort_temperature | float
+             if comfort_mode_active else normal_temperature | float %}
+        {% elif comfort_mode_active
+                and normalized_requested_temperature | float
+                    == normal_temperature | float %}
+          {% set raw = comfort_temperature | float %}
         {% else %}
           {% set raw = normalized_requested_temperature | float %}
         {% endif %}
