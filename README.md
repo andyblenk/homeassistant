@@ -56,3 +56,37 @@ Inputs:
 - Up to two humidity sensors
 - Activation and persistent-humidity thresholds
 - Humidity signal duration, periodic check interval, recheck pause, and Timer helper
+
+### Electric Heater Control
+Path: `blueprints/electric_heater_control.yaml`
+
+Controls an electric heater exposed as a Climate entity. It compares a room temperature sensor with the target temperature of another Climate entity and selects `off`, low, medium, or optionally high power. Preset names are configurable for compatibility with different heaters.
+
+Automatic control, presence, and a window contact provide the main safety conditions. Normal heating can optionally depend on PV power or battery state of charge. A Timer can temporarily request continuous heating at medium power, while PV surplus heating can use an Input Number plus an offset as a higher target temperature after a configured start time.
+
+Inputs:
+- Electric-heater and target-temperature Climate entities
+- Room temperature sensor
+- Optional automatic-control Input Boolean
+- Presence entity and window sensor
+- Optional continuous-heating Timer
+- Low, medium, and optional high presets with temperature thresholds
+- Optional PV-power and battery sensors with thresholds
+- Optional PV-surplus target-temperature Input Number, offset, threshold, and start time
+- Optional Electric-heater-only Input Boolean output
+
+### Room Climate Temperature Control
+Path: `blueprints/room_climate_temperature_control.yaml`
+
+Controls the target temperature of one room. A Home Assistant Climate entity acts as the master and synchronizes target-temperature changes bidirectionally with optional additional wall or hardware thermostats. Only target temperatures are synchronized; HVAC modes, presets, and measured temperatures remain untouched.
+
+Manual changes from any connected thermostat are rounded to a common step, stored in an Input Number, and distributed to the other thermostats without creating synchronization loops. Automatic control can temporarily apply a reduced temperature for summer, vacation, absence, or up to three optional daily time windows. The stored desired temperature is restored afterward.
+
+Inputs:
+- Master Climate entity and optional additional Climate thermostats
+- Desired-temperature Input Number
+- Heating/Eco Input Boolean
+- Optional automatic-control Input Boolean
+- Normal, Eco, Reduced, and synchronization-step temperatures
+- Optional summer/vacation and nobody-home entities
+- Up to three optional Reduced time windows

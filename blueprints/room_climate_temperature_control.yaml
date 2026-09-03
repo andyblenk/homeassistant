@@ -1,0 +1,440 @@
+blueprint:
+  name: Room climate temperature control
+  description: >-
+    Controls the target temperature of one room and synchronizes it between a
+    Home Assistant master climate entity and optional additional thermostats.
+
+    Manual temperature changes are stored as the room's desired temperature.
+    Automatic control can temporarily apply a reduced temperature for summer,
+    vacation, absence, or up to three optional daily time windows. The stored
+    desired temperature is restored afterward.
+
+    Only target temperatures are synchronized. HVAC modes, presets, and measured
+    temperatures are not changed.
+  domain: automation
+  author: Andreas Blenk
+  homeassistant:
+    min_version: 2024.10.0
+
+  input:
+    climates:
+      name: Climate entities
+      icon: mdi:thermostat
+      input:
+        master_climate:
+          name: Master climate
+          description: Main climate entity used by the automatic temperature control.
+          selector:
+            entity:
+              filter:
+                - domain: climate
+        synchronized_climates:
+          name: Additional thermostats
+          description: Optional climate entities synchronized with the master.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: climate
+
+    helpers:
+      name: Room helpers
+      icon: mdi:tune-variant
+      input:
+        desired_temperature_helper:
+          name: Desired temperature
+          description: Input Number storing the room's last desired temperature.
+          selector:
+            entity:
+              filter:
+                - domain: input_number
+        heating_switch:
+          name: Heating / Eco switch
+          description: On selects Normal; off selects Eco when changed manually.
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+        automatic_control:
+          name: Automatic temperature control
+          description: Optional Input Boolean. Empty means automatic control is enabled.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+
+    temperatures:
+      name: Temperatures
+      icon: mdi:thermometer
+      input:
+        normal_temperature:
+          name: Normal temperature
+          description: Loaded when the Heating / Eco switch is turned on manually.
+          default: 21
+          selector:
+            number:
+              min: 5
+              max: 35
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        eco_temperature:
+          name: Eco temperature
+          description: Loaded when the Heating / Eco switch is turned off manually.
+          default: 18
+          selector:
+            number:
+              min: 5
+              max: 35
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        reduced_temperature:
+          name: Reduced temperature
+          description: Used during summer, vacation, absence, and active time windows.
+          default: 15
+          selector:
+            number:
+              min: 5
+              max: 35
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        temperature_step:
+          name: Temperature step
+          description: Temperatures are rounded to this common thermostat step.
+          default: 0.5
+          selector:
+            number:
+              min: 0.1
+              max: 2
+              step: 0.1
+              unit_of_measurement: °C
+              mode: box
+
+    reduced_conditions:
+      name: Reduced conditions
+      icon: mdi:home-minus
+      collapsed: true
+      input:
+        summer_or_vacation_mode:
+          name: Summer or vacation mode
+          description: Optional entity. On forces Reduced while automatic control is active.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+        nobody_home:
+          name: Nobody at home
+          description: Optional entity. On forces Reduced while automatic control is active.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+
+    time_window_1:
+      name: Reduced time window 1
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        time_window_1_enabled:
+          name: Enable time window 1
+          description: Enables this daily Reduced period.
+          default: false
+          selector:
+            boolean:
+        time_window_1_start:
+          name: Start time
+          description: Time at which this Reduced period starts.
+          default: "23:00:00"
+          selector:
+            time:
+        time_window_1_end:
+          name: End time
+          description: Time at which this Reduced period ends.
+          default: "06:00:00"
+          selector:
+            time:
+
+    time_window_2:
+      name: Reduced time window 2
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        time_window_2_enabled:
+          name: Enable time window 2
+          description: Enables this daily Reduced period.
+          default: false
+          selector:
+            boolean:
+        time_window_2_start:
+          name: Start time
+          description: Time at which this Reduced period starts.
+          default: "09:00:00"
+          selector:
+            time:
+        time_window_2_end:
+          name: End time
+          description: Time at which this Reduced period ends.
+          default: "12:00:00"
+          selector:
+            time:
+
+    time_window_3:
+      name: Reduced time window 3
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        time_window_3_enabled:
+          name: Enable time window 3
+          description: Enables this daily Reduced period.
+          default: false
+          selector:
+            boolean:
+        time_window_3_start:
+          name: Start time
+          description: Time at which this Reduced period starts.
+          default: "14:00:00"
+          selector:
+            time:
+        time_window_3_end:
+          name: End time
+          description: Time at which this Reduced period ends.
+          default: "17:00:00"
+          selector:
+            time:
+
+triggers:
+  - trigger: state
+    entity_id: !input master_climate
+    attribute: temperature
+    id: climate_temperature_changed
+  - trigger: state
+    entity_id: !input synchronized_climates
+    attribute: temperature
+    id: climate_temperature_changed
+  - trigger: state
+    entity_id: !input desired_temperature_helper
+    id: desired_temperature_changed
+  - trigger: state
+    entity_id: !input heating_switch
+    id: heating_switch_changed
+  - trigger: state
+    entity_id: !input automatic_control
+    id: evaluate
+  - trigger: state
+    entity_id: !input summer_or_vacation_mode
+    id: evaluate
+  - trigger: state
+    entity_id: !input nobody_home
+    id: evaluate
+  - trigger: time
+    at: !input time_window_1_start
+    id: evaluate
+  - trigger: time
+    at: !input time_window_1_end
+    id: evaluate
+  - trigger: time
+    at: !input time_window_2_start
+    id: evaluate
+  - trigger: time
+    at: !input time_window_2_end
+    id: evaluate
+  - trigger: time
+    at: !input time_window_3_start
+    id: evaluate
+  - trigger: time
+    at: !input time_window_3_end
+    id: evaluate
+  - trigger: time_pattern
+    minutes: "/15"
+    id: evaluate
+  - trigger: homeassistant
+    event: start
+    id: evaluate
+  - trigger: event
+    event_type: automation_reloaded
+    id: evaluate
+
+conditions: []
+
+actions:
+  - variables:
+      master_climate_entity: !input master_climate
+      synchronized_climate_entities: !input synchronized_climates
+      desired_temperature_helper_entity: !input desired_temperature_helper
+      heating_switch_entity: !input heating_switch
+      automatic_control_entity: !input automatic_control
+      summer_or_vacation_mode_entity: !input summer_or_vacation_mode
+      nobody_home_entity: !input nobody_home
+      normal_temperature: !input normal_temperature
+      eco_temperature: !input eco_temperature
+      reduced_temperature: !input reduced_temperature
+      temperature_step: !input temperature_step
+      time_window_1_enabled: !input time_window_1_enabled
+      time_window_1_start: !input time_window_1_start
+      time_window_1_end: !input time_window_1_end
+      time_window_2_enabled: !input time_window_2_enabled
+      time_window_2_start: !input time_window_2_start
+      time_window_2_end: !input time_window_2_end
+      time_window_3_enabled: !input time_window_3_enabled
+      time_window_3_start: !input time_window_3_start
+      time_window_3_end: !input time_window_3_end
+      sync_tolerance: "{{ [temperature_step | float / 2, 0.01] | max }}"
+      automatic_control_enabled: >-
+        {{ automatic_control_entity | count == 0
+           or is_state(automatic_control_entity, 'on') }}
+      summer_or_vacation_active: >-
+        {{ summer_or_vacation_mode_entity | count > 0
+           and is_state(summer_or_vacation_mode_entity, 'on') }}
+      nobody_home_active: >-
+        {{ nobody_home_entity | count > 0
+           and is_state(nobody_home_entity, 'on') }}
+      time_window_1_active: >-
+        {% set start = today_at(time_window_1_start) %}
+        {% set end = today_at(time_window_1_end) %}
+        {{ time_window_1_enabled
+           and start != end
+           and ((start < end and start <= now() < end)
+                or (start > end and (now() >= start or now() < end))) }}
+      time_window_2_active: >-
+        {% set start = today_at(time_window_2_start) %}
+        {% set end = today_at(time_window_2_end) %}
+        {{ time_window_2_enabled
+           and start != end
+           and ((start < end and start <= now() < end)
+                or (start > end and (now() >= start or now() < end))) }}
+      time_window_3_active: >-
+        {% set start = today_at(time_window_3_start) %}
+        {% set end = today_at(time_window_3_end) %}
+        {{ time_window_3_enabled
+           and start != end
+           and ((start < end and start <= now() < end)
+                or (start > end and (now() >= start or now() < end))) }}
+      reduced_mode_active: >-
+        {{ automatic_control_enabled
+           and (summer_or_vacation_active
+                or nobody_home_active
+                or time_window_1_active
+                or time_window_2_active
+                or time_window_3_active) }}
+      stored_temperature_available: >-
+        {{ has_value(desired_temperature_helper_entity) }}
+      stored_temperature: >-
+        {{ states(desired_temperature_helper_entity) | float(0) }}
+      climate_change_triggered: >-
+        {{ trigger.id == 'climate_temperature_changed' }}
+      source_temperature_available: >-
+        {{ climate_change_triggered
+           and trigger.to_state is not none
+           and trigger.to_state.attributes.temperature is number }}
+      source_temperature_is_current: >-
+        {{ source_temperature_available
+           and state_attr(trigger.entity_id, 'temperature') is number
+           and ((state_attr(trigger.entity_id, 'temperature') | float
+                 - trigger.to_state.attributes.temperature | float) | abs < 0.01) }}
+      source_temperature: >-
+        {% set raw = trigger.to_state.attributes.temperature | float(0)
+           if source_temperature_available else 0 %}
+        {{ ((raw / temperature_step | float) | round(0)
+            * temperature_step | float) | round(2) }}
+      expected_heating_switch_on: >-
+        {{ stored_temperature_available
+           and stored_temperature > eco_temperature | float }}
+      manual_heating_switch_change: >-
+        {{ trigger.id == 'heating_switch_changed'
+           and is_state(heating_switch_entity, 'on')
+               != expected_heating_switch_on }}
+      requested_temperature_available: >-
+        {{ (climate_change_triggered
+            and source_temperature_available
+            and source_temperature_is_current
+            and not reduced_mode_active)
+           or manual_heating_switch_change
+           or stored_temperature_available }}
+      requested_temperature: >-
+        {% if climate_change_triggered
+              and source_temperature_available
+              and source_temperature_is_current
+              and not reduced_mode_active %}
+          {{ source_temperature }}
+        {% elif manual_heating_switch_change %}
+          {{ normal_temperature | float
+             if is_state(heating_switch_entity, 'on')
+             else eco_temperature | float }}
+        {% else %}
+          {{ stored_temperature }}
+        {% endif %}
+      normalized_requested_temperature: >-
+        {{ ((requested_temperature | float / temperature_step | float) | round(0)
+            * temperature_step | float) | round(2) }}
+      effective_temperature_available: >-
+        {{ reduced_mode_active or requested_temperature_available }}
+      effective_temperature: >-
+        {% set raw = reduced_temperature | float
+           if reduced_mode_active else normalized_requested_temperature | float %}
+        {{ ((raw / temperature_step | float) | round(0)
+            * temperature_step | float) | round(2) }}
+      desired_heating_switch_on: >-
+        {{ requested_temperature_available
+           and normalized_requested_temperature > eco_temperature | float }}
+      all_climate_entities: >-
+        {{ ([master_climate_entity] + synchronized_climate_entities)
+           | unique | list }}
+  - if:
+      - condition: template
+        value_template: >-
+          {{ requested_temperature_available
+             and (not stored_temperature_available
+                  or (stored_temperature
+                      - normalized_requested_temperature) | abs >= 0.01) }}
+    then:
+      - action: input_number.set_value
+        target:
+          entity_id: !input desired_temperature_helper
+        data:
+          value: "{{ normalized_requested_temperature }}"
+  - if:
+      - condition: template
+        value_template: >-
+          {{ requested_temperature_available
+             and is_state(heating_switch_entity, 'on')
+                 != desired_heating_switch_on }}
+    then:
+      - action: >-
+          input_boolean.turn_{{ 'on' if desired_heating_switch_on else 'off' }}
+        target:
+          entity_id: !input heating_switch
+  - if:
+      - condition: template
+        value_template: "{{ effective_temperature_available }}"
+    then:
+      - repeat:
+          for_each: "{{ all_climate_entities }}"
+          sequence:
+            - variables:
+                climate_entity: "{{ repeat.item }}"
+            - if:
+                - condition: template
+                  value_template: >-
+                    {{ has_value(climate_entity)
+                       and state_attr(climate_entity, 'temperature') is number
+                       and ((state_attr(climate_entity, 'temperature') | float
+                             - effective_temperature | float) | abs
+                            >= sync_tolerance | float) }}
+              then:
+                - action: climate.set_temperature
+                  target:
+                    entity_id: "{{ climate_entity }}"
+                  data:
+                    temperature: "{{ effective_temperature }}"
+
+mode: queued
+max: 20
+max_exceeded: silent
