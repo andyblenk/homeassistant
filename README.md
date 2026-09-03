@@ -80,7 +80,7 @@ Path: `blueprints/room_climate_temperature_control.yaml`
 
 Controls the target temperature of one room. A Home Assistant Climate entity acts as the master and synchronizes target-temperature changes bidirectionally with optional additional wall or hardware thermostats. Only target temperatures are synchronized; HVAC modes, presets, and measured temperatures remain untouched.
 
-Manual changes from any connected thermostat are rounded to a common step, stored in an Input Number, and distributed to the other thermostats without creating synchronization loops. Vacation and absence apply Reduced. Optional Comfort conditions replace Normal with Comfort. Up to four optional daily time windows can independently apply Reduced, Eco, or Heat.
+Manual changes from any connected thermostat are rounded to a common step, stored in an Input Number, and distributed to the other thermostats without creating synchronization loops. Vacation and absence apply Reduced. Deliberate preheating can override them through any synchronized thermostat or the Heating/Eco switch. Optional Comfort conditions replace Normal with Comfort. Up to four optional daily time windows can independently apply Reduced, Eco, or Heat.
 
 Inputs:
 - Master Climate entity and optional additional Climate thermostats
