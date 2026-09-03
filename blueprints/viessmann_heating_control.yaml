@@ -1,15 +1,17 @@
 blueprint:
   name: Viessmann heating control
   description: >-
-    Version 0.2.0
+    Version 0.3.0
 
     Controls a Viessmann heating system through its ViCare operating modes.
     Away conditions use standby to disable heating and domestic hot water.
-    Summer conditions use dhw for domestic hot water only. Otherwise,
-    dhwAndHeating restores normal scheduled operation.
+    An optional Pre-heat timer overrides away conditions: it uses dhw during
+    summer and dhwAndHeating otherwise. Summer conditions use dhw for domestic
+    hot water only. Otherwise, dhwAndHeating restores normal scheduled operation.
 
-    Away conditions have priority over summer conditions. A ViCare action is
-    sent only when the requested mode differs from active_vicare_mode.
+    Pre-heat has priority over away and summer conditions. Away conditions have
+    priority over summer conditions. A ViCare action is sent only when the
+    requested mode differs from active_vicare_mode.
   domain: automation
   author: Andreas Blenk
   homeassistant:
@@ -62,11 +64,27 @@ blueprint:
                 - domain: binary_sensor
                 - domain: timer
 
+    preheat:
+      name: Pre-heat
+      icon: mdi:fire-clock
+      collapsed: true
+      input:
+        preheat_timer:
+          name: Pre-heat timer
+          description: Optional timer. Active enables hot water and, outside summer, heating.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: timer
+
 triggers:
   - trigger: state
     entity_id: !input reduced_condition_entities
   - trigger: state
     entity_id: !input summer_condition_entities
+  - trigger: state
+    entity_id: !input preheat_timer
   - trigger: time_pattern
     minutes: "/15"
   - trigger: homeassistant
@@ -81,6 +99,7 @@ actions:
       heating_climate_entity: !input heating_climate
       reduced_condition_entities: !input reduced_condition_entities
       summer_condition_entities: !input summer_condition_entities
+      preheat_timer_entity: !input preheat_timer
       away_active: >-
         {{ (expand(reduced_condition_entities)
             | selectattr('state', 'eq', 'on') | list | count > 0)
@@ -91,8 +110,15 @@ actions:
             | selectattr('state', 'eq', 'on') | list | count > 0)
            or (expand(summer_condition_entities)
                | selectattr('state', 'eq', 'active') | list | count > 0) }}
+      preheat_active: >-
+        {{ preheat_timer_entity | count > 0
+           and is_state(preheat_timer_entity, 'active') }}
       requested_vicare_mode: >-
-        {% if away_active %}
+        {% if preheat_active and summer_active %}
+          dhw
+        {% elif preheat_active %}
+          dhwAndHeating
+        {% elif away_active %}
           standby
         {% elif summer_active %}
           dhw

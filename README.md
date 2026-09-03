@@ -98,7 +98,7 @@ Inputs:
 ### Viessmann Heating Control
 Path: `blueprints/viessmann_heating_control.yaml`
 
-Controls the operating mode of a Viessmann heating system through the ViCare integration. Away conditions have priority and select `standby`, disabling heating and domestic hot water. Summer conditions select `dhw` for domestic hot water only. With no active condition, `dhwAndHeating` restores normal scheduled heating and hot water operation.
+Controls the operating mode of a Viessmann heating system through the ViCare integration. Away conditions select `standby`, disabling heating and domestic hot water. An optional Pre-heat Timer overrides absence and selects `dhw` during summer or `dhwAndHeating` otherwise. Summer conditions select `dhw` for domestic hot water only. With no active condition, `dhwAndHeating` restores normal scheduled heating and hot water operation.
 
 The blueprint accepts multiple Boolean, binary-sensor, or Timer entities for both condition groups. It reevaluates changes immediately and performs a 15-minute safety check while avoiding repeated ViCare calls when the correct mode is already active.
 
@@ -106,3 +106,4 @@ Inputs:
 - Viessmann ViCare Climate entity
 - Optional away-condition entities, such as nobody at home or vacation
 - Optional summer-condition entities
+- Optional Pre-heat Timer
