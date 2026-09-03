@@ -62,7 +62,7 @@ Path: `blueprints/electric_heater_control.yaml`
 
 Controls an electric heater exposed as a Climate entity. It compares a room temperature sensor with the target temperature of another Climate entity and selects `off`, low, medium, or optionally high power. Preset names are configurable for compatibility with different heaters.
 
-Automatic control, presence, and a window contact provide the main safety conditions. Normal heating can optionally depend on PV power or battery state of charge. A Timer can temporarily request continuous heating at medium power, while PV surplus heating can use an Input Number plus an offset as a higher target temperature after a configured start time.
+Automatic control, presence, and a window contact provide the main safety conditions. Normal heating can optionally depend on PV power or battery state of charge. A Timer can temporarily request continuous heating at medium power, while PV surplus heating can use a directly configured higher target temperature after a configured start time.
 
 A configurable continuous-runtime limit switches the heater off after five hours by default. A later regular trigger may start a new heating cycle when all conditions are still met.
 
@@ -74,7 +74,7 @@ Inputs:
 - Optional continuous-heating Timer
 - Low, medium, and optional high presets with temperature thresholds
 - Optional PV-power and battery sensors with thresholds
-- Optional PV-surplus target-temperature Input Number, offset, threshold, and start time
+- Optional PV-surplus target temperature, PV threshold, and start time
 - Optional Electric-heater-only Input Boolean output
 - Maximum continuous heating duration, default 5 hours
 

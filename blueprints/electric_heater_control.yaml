@@ -1,7 +1,7 @@
 blueprint:
   name: Electric heater control
   description: >-
-    Version 1.0.0
+    Version 1.1.0
 
     Controls an electric heater through a Home Assistant climate entity.
 
@@ -296,21 +296,13 @@ blueprint:
               step: 0.1
               mode: box
         surplus_target_temperature:
-          name: Target temperature helper
-          description: Input Number providing the target for surplus heating.
-          default: []
-          selector:
-            entity:
-              filter:
-                - domain: input_number
-        surplus_temperature_offset:
-          name: Additional target temperature
-          description: Added to the target temperature helper while surplus heating.
-          default: 1
+          name: Target temperature
+          description: Room target temperature used during PV surplus heating.
+          default: 23
           selector:
             number:
-              min: 0
-              max: 10
+              min: 5
+              max: 35
               step: 0.5
               unit_of_measurement: °C
               mode: box
@@ -333,8 +325,6 @@ triggers:
     entity_id: !input continuous_heating_timer
   - trigger: state
     entity_id: !input battery_sensor
-  - trigger: state
-    entity_id: !input surplus_target_temperature
   - trigger: state
     entity_id: !input heater
     to: heat
@@ -387,8 +377,7 @@ actions:
       surplus_heating_enabled: !input surplus_heating_enabled
       surplus_start_time: !input surplus_start_time
       surplus_pv_threshold: !input surplus_pv_threshold
-      surplus_target_temperature_entity: !input surplus_target_temperature
-      surplus_temperature_offset: !input surplus_temperature_offset
+      surplus_target_temperature: !input surplus_target_temperature
       switch_off_tolerance: !input switch_off_tolerance
       low_preset_range: !input low_preset_range
       low_preset: !input low_preset
@@ -414,21 +403,16 @@ actions:
         {{ pv_power_configured
            and has_value(pv_power_sensor_entity)
            and states(pv_power_sensor_entity) | float(0) > pv_power_threshold | float }}
-      surplus_target_configured: >-
-        {{ surplus_target_temperature_entity | count > 0 }}
       surplus_heating_active: >-
         {{ surplus_heating_enabled
            and now() >= today_at(surplus_start_time)
            and pv_power_configured
-           and surplus_target_configured
            and has_value(pv_power_sensor_entity)
-           and has_value(surplus_target_temperature_entity)
            and states(pv_power_sensor_entity) | float(0)
                > surplus_pv_threshold | float }}
       target_temperature: >-
         {% if surplus_heating_active %}
-          {{ states(surplus_target_temperature_entity) | float(0)
-             + surplus_temperature_offset | float }}
+          {{ surplus_target_temperature | float }}
         {% else %}
           {{ state_attr(target_climate_entity, 'temperature') | float(0) }}
         {% endif %}
