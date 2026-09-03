@@ -1,7 +1,7 @@
 blueprint:
   name: Viessmann heating control
   description: >-
-    Version 0.3.0
+    Version 0.3.1
 
     Controls a Viessmann heating system through its ViCare operating modes.
     Away conditions use standby to disable heating and domestic hot water.
@@ -66,7 +66,7 @@ blueprint:
 
     preheat:
       name: Pre-heat
-      icon: mdi:fire-clock
+      icon: mdi:fire
       collapsed: true
       input:
         preheat_timer:
