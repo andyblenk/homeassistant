@@ -1,0 +1,121 @@
+blueprint:
+  name: Viessmann heating control
+  description: >-
+    Version 0.1.0
+
+    Controls a Viessmann heating system through its ViCare operating modes.
+    Reduced conditions use forcedReduced, which disables domestic hot water.
+    Summer conditions use dhw for domestic hot water only. Otherwise,
+    dhwAndHeating restores normal scheduled operation.
+
+    Reduced conditions have priority over summer conditions. A ViCare action is
+    sent only when the requested mode differs from active_vicare_mode.
+  domain: automation
+  author: Andreas Blenk
+  homeassistant:
+    min_version: 2024.10.0
+
+  input:
+    heating:
+      name: Viessmann heating
+      icon: mdi:heating-coil
+      input:
+        heating_climate:
+          name: Heating climate
+          description: ViCare Climate entity whose operating mode is controlled.
+          selector:
+            entity:
+              filter:
+                - domain: climate
+
+    reduced_conditions:
+      name: Reduced conditions
+      icon: mdi:home-off
+      collapsed: true
+      input:
+        reduced_condition_entities:
+          name: Reduced conditions
+          description: Optional entities, for example nobody at home or vacation.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+                - domain: timer
+
+    summer_conditions:
+      name: Summer conditions
+      icon: mdi:weather-sunny
+      collapsed: true
+      input:
+        summer_condition_entities:
+          name: Summer conditions
+          description: Optional entities. Any on or active state enables DHW only.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+                - domain: timer
+
+triggers:
+  - trigger: state
+    entity_id: !input reduced_condition_entities
+  - trigger: state
+    entity_id: !input summer_condition_entities
+  - trigger: time_pattern
+    minutes: "/15"
+  - trigger: homeassistant
+    event: start
+  - trigger: event
+    event_type: automation_reloaded
+
+conditions: []
+
+actions:
+  - variables:
+      heating_climate_entity: !input heating_climate
+      reduced_condition_entities: !input reduced_condition_entities
+      summer_condition_entities: !input summer_condition_entities
+      reduced_active: >-
+        {{ (expand(reduced_condition_entities)
+            | selectattr('state', 'eq', 'on') | list | count > 0)
+           or (expand(reduced_condition_entities)
+               | selectattr('state', 'eq', 'active') | list | count > 0) }}
+      summer_active: >-
+        {{ (expand(summer_condition_entities)
+            | selectattr('state', 'eq', 'on') | list | count > 0)
+           or (expand(summer_condition_entities)
+               | selectattr('state', 'eq', 'active') | list | count > 0) }}
+      requested_vicare_mode: >-
+        {% if reduced_active %}
+          forcedReduced
+        {% elif summer_active %}
+          dhw
+        {% else %}
+          dhwAndHeating
+        {% endif %}
+      active_vicare_mode: >-
+        {{ state_attr(heating_climate_entity, 'active_vicare_mode') | default('', true) }}
+      supported_vicare_modes: >-
+        {{ state_attr(heating_climate_entity, 'vicare_modes') | default([], true) }}
+      mode_change_required: >-
+        {{ has_value(heating_climate_entity)
+           and requested_vicare_mode in supported_vicare_modes
+           and active_vicare_mode != requested_vicare_mode }}
+  - if:
+      - condition: template
+        value_template: "{{ mode_change_required }}"
+    then:
+      - action: vicare.set_vicare_mode
+        target:
+          entity_id: !input heating_climate
+        data:
+          vicare_mode: "{{ requested_vicare_mode }}"
+
+mode: single
+max_exceeded: silent
