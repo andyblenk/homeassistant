@@ -1,7 +1,7 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.8.0
+    Version 0.9.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
@@ -9,9 +9,10 @@ blueprint:
     Manual temperature changes are stored as the room's desired temperature.
     Configured conditions can apply Reduced but still allow deliberate
     preheating from any synchronized thermostat or Heating / Eco switch. Optional
-    conditions can use Comfort instead of Normal. Up to four daily time windows
-    can apply Reduced, Eco, or Heat. Up to three optional safeguard checks can
-    end heating that was left enabled.
+    conditions can use Comfort instead of Normal. Comfort activates immediately
+    and deactivates after five stable minutes. Up to four daily time windows can
+    apply Reduced, Eco, or Heat. Up to three optional safeguard checks can end
+    heating that was left enabled.
 
     Only target temperatures are synchronized. HVAC modes, presets, and measured
     temperatures are not changed.
@@ -355,7 +356,13 @@ triggers:
     id: reduced_condition_changed
   - trigger: state
     entity_id: !input comfort_condition_entities
-    id: comfort_condition_changed
+    to: "on"
+    id: comfort_condition_activated
+  - trigger: state
+    entity_id: !input comfort_condition_entities
+    to: "off"
+    for: "00:05:00"
+    id: comfort_condition_deactivated
   - trigger: time
     at: !input time_window_1_start
     id: time_window_1_started
@@ -508,8 +515,26 @@ actions:
         {% endfor %}
         {{ ns.starts | max if ns.starts | count > 0 else 0 }}
       comfort_mode_active: >-
-        {{ expand(comfort_condition_entities)
-           | selectattr('state', 'eq', 'on') | list | count > 0 }}
+        {% set entities = expand(comfort_condition_entities) | list %}
+        {% set active = entities | selectattr('state', 'eq', 'on')
+           | list | count > 0 %}
+        {% set all_off = entities | count > 0
+           and entities | rejectattr('state', 'eq', 'off')
+           | list | count == 0 %}
+        {% set ns = namespace(last_change=0) %}
+        {% for entity in entities %}
+          {% set changed = as_timestamp(entity.last_changed) %}
+          {% if changed > ns.last_change %}
+            {% set ns.last_change = changed %}
+          {% endif %}
+        {% endfor %}
+        {% set waiting_to_deactivate = all_off
+           and trigger.id != 'comfort_condition_deactivated'
+           and as_timestamp(now()) - ns.last_change < 300
+           and state_attr(master_climate_entity, 'temperature') is number
+           and ((state_attr(master_climate_entity, 'temperature') | float
+                 - comfort_temperature | float) | abs < 0.01) %}
+        {{ active or waiting_to_deactivate }}
       time_window_config_active: >-
         {{ active_time_window_mode != 'neutral' }}
       time_window_target_temperature: >-
