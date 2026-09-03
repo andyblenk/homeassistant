@@ -1,6 +1,8 @@
 blueprint:
   name: Room climate temperature control
   description: >-
+    Version 0.2.0
+
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
 
@@ -392,6 +394,10 @@ actions:
         {{ states(desired_temperature_helper_entity) | float(0) }}
       climate_change_triggered: >-
         {{ trigger.id == 'climate_temperature_changed' }}
+      climate_change_is_external: >-
+        {{ climate_change_triggered
+           and trigger.to_state is not none
+           and trigger.to_state.context.parent_id is none }}
       source_temperature_available: >-
         {{ climate_change_triggered
            and trigger.to_state is not none
@@ -438,7 +444,7 @@ actions:
         {{ heating_switch_change_is_external }}
       seasonal_manual_temperature_change: >-
         {{ seasonal_mode_active
-           and climate_change_triggered
+           and climate_change_is_external
            and source_temperature_available
            and source_temperature_is_current
            and source_temperature | float
@@ -460,6 +466,7 @@ actions:
                          or time_window_3_active))) }}
       requested_temperature_available: >-
         {{ (climate_change_triggered
+            and climate_change_is_external
             and source_temperature_available
             and source_temperature_is_current
             and (not reduced_mode_active
@@ -470,6 +477,7 @@ actions:
            or stored_temperature_available }}
       requested_temperature: >-
         {% if climate_change_triggered
+              and climate_change_is_external
               and source_temperature_available
               and source_temperature_is_current
               and (not reduced_mode_active
