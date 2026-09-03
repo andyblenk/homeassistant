@@ -6,8 +6,9 @@ blueprint:
 
     Manual temperature changes are stored as the room's desired temperature.
     Automatic control can temporarily apply a reduced temperature for summer,
-    vacation, absence, or up to three optional daily time windows. The stored
-    desired temperature is restored afterward.
+    vacation, absence, or up to three optional daily time windows. Summer and
+    vacation can be overridden manually. Up to three optional safeguard checks
+    can end heating that was left enabled.
 
     Only target temperatures are synchronized. HVAC modes, presets, and measured
     temperatures are not changed.
@@ -51,7 +52,7 @@ blueprint:
                 - domain: input_number
         heating_switch:
           name: Heating / Eco switch
-          description: On selects Normal; off selects Eco when changed manually.
+          description: On selects Normal; off selects Eco or Reduced when changed manually.
           selector:
             entity:
               filter:
@@ -109,7 +110,7 @@ blueprint:
       input:
         summer_mode:
           name: Summer mode
-          description: Optional entity. On forces Reduced while automatic control is active.
+          description: Optional entity. On starts in Reduced but allows manual heating.
           default: []
           selector:
             entity:
@@ -118,7 +119,7 @@ blueprint:
                 - domain: binary_sensor
         vacation_mode:
           name: Vacation mode
-          description: Optional entity. On forces Reduced while automatic control is active.
+          description: Optional entity. On starts in Reduced but allows manual heating.
           default: []
           selector:
             entity:
@@ -207,6 +208,54 @@ blueprint:
           selector:
             time:
 
+    safeguard_checks:
+      name: Heating safeguard checks
+      icon: mdi:timer-check-outline
+      collapsed: true
+      input:
+        safeguard_1_enabled:
+          name: Enable safeguard check 1
+          description: Checks at this time whether heating was left enabled.
+          default: false
+          selector:
+            boolean:
+        safeguard_1_time:
+          name: Check time 1
+          description: Daily time for the first safeguard check.
+          default: "23:00:00"
+          selector:
+            time:
+        safeguard_2_enabled:
+          name: Enable safeguard check 2
+          description: Checks at this time whether heating was left enabled.
+          default: false
+          selector:
+            boolean:
+        safeguard_2_time:
+          name: Check time 2
+          description: Daily time for the second safeguard check.
+          default: "03:00:00"
+          selector:
+            time:
+        safeguard_3_enabled:
+          name: Enable safeguard check 3
+          description: Checks at this time whether heating was left enabled.
+          default: false
+          selector:
+            boolean:
+        safeguard_3_time:
+          name: Check time 3
+          description: Daily time for the third safeguard check.
+          default: "05:00:00"
+          selector:
+            time:
+        safeguard_blocker:
+          name: Blocker
+          description: Optional entity. Its on state skips all safeguard checks.
+          default: []
+          selector:
+            entity:
+
 triggers:
   - trigger: state
     entity_id: !input master_climate
@@ -227,10 +276,10 @@ triggers:
     id: evaluate
   - trigger: state
     entity_id: !input summer_mode
-    id: evaluate
+    id: summer_mode_changed
   - trigger: state
     entity_id: !input vacation_mode
-    id: evaluate
+    id: vacation_mode_changed
   - trigger: state
     entity_id: !input nobody_home
     id: evaluate
@@ -252,6 +301,15 @@ triggers:
   - trigger: time
     at: !input time_window_3_end
     id: evaluate
+  - trigger: time
+    at: !input safeguard_1_time
+    id: safeguard_1
+  - trigger: time
+    at: !input safeguard_2_time
+    id: safeguard_2
+  - trigger: time
+    at: !input safeguard_3_time
+    id: safeguard_3
   - trigger: time_pattern
     minutes: "/15"
     id: evaluate
@@ -287,7 +345,11 @@ actions:
       time_window_3_enabled: !input time_window_3_enabled
       time_window_3_start: !input time_window_3_start
       time_window_3_end: !input time_window_3_end
-      sync_tolerance: "{{ [temperature_step | float / 2, 0.01] | max }}"
+      safeguard_1_enabled: !input safeguard_1_enabled
+      safeguard_2_enabled: !input safeguard_2_enabled
+      safeguard_3_enabled: !input safeguard_3_enabled
+      safeguard_blocker: !input safeguard_blocker
+      sync_tolerance: 0.01
       automatic_control_enabled: >-
         {{ automatic_control_entity | count == 0
            or is_state(automatic_control_entity, 'on') }}
@@ -297,6 +359,9 @@ actions:
       vacation_mode_active: >-
         {{ vacation_mode_entity | count > 0
            and is_state(vacation_mode_entity, 'on') }}
+      seasonal_mode_active: >-
+        {{ automatic_control_enabled
+           and (summer_mode_active or vacation_mode_active) }}
       nobody_home_active: >-
         {{ nobody_home_entity | count > 0
            and is_state(nobody_home_entity, 'on') }}
@@ -321,14 +386,6 @@ actions:
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
-      reduced_mode_active: >-
-        {{ automatic_control_enabled
-           and (summer_mode_active
-                or vacation_mode_active
-                or nobody_home_active
-                or time_window_1_active
-                or time_window_2_active
-                or time_window_3_active) }}
       stored_temperature_available: >-
         {{ has_value(desired_temperature_helper_entity) }}
       stored_temperature: >-
@@ -349,30 +406,81 @@ actions:
            if source_temperature_available else 0 %}
         {{ ((raw / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
-      expected_heating_switch_on: >-
-        {{ stored_temperature_available
-           and stored_temperature > eco_temperature | float }}
-      manual_heating_switch_change: >-
-        {{ trigger.id == 'heating_switch_changed'
+      seasonal_mode_activated: >-
+        {{ automatic_control_enabled
+           and trigger.id in ['summer_mode_changed', 'vacation_mode_changed']
+           and trigger.to_state is not none
+           and trigger.to_state.state == 'on' }}
+      safeguard_check_due: >-
+        {{ (trigger.id == 'safeguard_1'
+            and safeguard_1_enabled)
+           or (trigger.id == 'safeguard_2'
+               and safeguard_2_enabled)
+           or (trigger.id == 'safeguard_3'
+               and safeguard_3_enabled) }}
+      safeguard_blocked: >-
+        {{ safeguard_blocker | count > 0
+           and is_state(safeguard_blocker, 'on') }}
+      safeguard_heating_active: >-
+        {{ safeguard_check_due
+           and not safeguard_blocked
            and is_state(heating_switch_entity, 'on')
-               != expected_heating_switch_on }}
+           and ((stored_temperature_available
+                 and stored_temperature > eco_temperature | float)
+                or (state_attr(master_climate_entity, 'temperature') is number
+                    and state_attr(master_climate_entity, 'temperature') | float
+                        > eco_temperature | float)) }}
+      heating_switch_change_is_external: >-
+        {{ trigger.id == 'heating_switch_changed'
+           and trigger.to_state is not none
+           and trigger.to_state.context.parent_id is none }}
+      manual_heating_switch_change: >-
+        {{ heating_switch_change_is_external }}
+      seasonal_manual_temperature_change: >-
+        {{ seasonal_mode_active
+           and climate_change_triggered
+           and source_temperature_available
+           and source_temperature_is_current
+           and source_temperature | float
+               != reduced_temperature | float }}
+      seasonal_manual_override_active: >-
+        {{ seasonal_mode_active
+           and (is_state(heating_switch_entity, 'on')
+                or seasonal_manual_temperature_change) }}
+      reduced_mode_active: >-
+        {{ automatic_control_enabled
+           and (nobody_home_active
+                or (seasonal_mode_active
+                    and (not seasonal_manual_override_active
+                         or seasonal_mode_activated
+                         or safeguard_heating_active))
+                or (not seasonal_mode_active
+                    and (time_window_1_active
+                         or time_window_2_active
+                         or time_window_3_active))) }}
       requested_temperature_available: >-
         {{ (climate_change_triggered
             and source_temperature_available
             and source_temperature_is_current
-            and not reduced_mode_active)
+            and (not reduced_mode_active
+                 or seasonal_manual_temperature_change))
            or manual_heating_switch_change
+           or seasonal_mode_activated
+           or safeguard_heating_active
            or stored_temperature_available }}
       requested_temperature: >-
         {% if climate_change_triggered
               and source_temperature_available
               and source_temperature_is_current
-              and not reduced_mode_active %}
+              and (not reduced_mode_active
+                   or seasonal_manual_temperature_change) %}
           {{ source_temperature }}
         {% elif manual_heating_switch_change %}
           {{ normal_temperature | float
              if is_state(heating_switch_entity, 'on')
              else eco_temperature | float }}
+        {% elif seasonal_mode_activated or safeguard_heating_active %}
+          {{ eco_temperature | float }}
         {% else %}
           {{ stored_temperature }}
         {% endif %}
@@ -387,8 +495,12 @@ actions:
         {{ ((raw / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
       desired_heating_switch_on: >-
-        {{ requested_temperature_available
-           and normalized_requested_temperature > eco_temperature | float }}
+        {{ not seasonal_mode_activated
+           and not safeguard_heating_active
+           and requested_temperature_available
+           and normalized_requested_temperature
+               > (reduced_temperature | float
+                  if seasonal_mode_active else eco_temperature | float) }}
       all_climate_entities: >-
         {{ ([master_climate_entity] + synchronized_climate_entities)
            | unique | list }}
