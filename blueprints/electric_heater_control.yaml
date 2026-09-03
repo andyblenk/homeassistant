@@ -1,6 +1,8 @@
 blueprint:
   name: Electric heater control
   description: >-
+    Version 1.0.0
+
     Controls an electric heater through a Home Assistant climate entity.
 
     The heater follows the target temperature of another climate entity and is
@@ -11,6 +13,7 @@ blueprint:
     The blueprint expects the heater to support the HVAC modes heat and off as
     well as the configured low and medium presets. A high preset can optionally
     be enabled for large temperature differences. It is disabled by default.
+    A configurable runtime limit switches off continuously enabled heating.
   domain: automation
   author: Andreas Blenk
   homeassistant:
@@ -76,6 +79,13 @@ blueprint:
             entity:
               filter:
                 - domain: binary_sensor
+        maximum_heating_duration:
+          name: Maximum continuous heating duration
+          description: Switches the heater off after this uninterrupted time in heat mode.
+          default:
+            hours: 5
+          selector:
+            duration:
 
     continuous_heating:
       name: Continuous heating
@@ -325,6 +335,11 @@ triggers:
     entity_id: !input battery_sensor
   - trigger: state
     entity_id: !input surplus_target_temperature
+  - trigger: state
+    entity_id: !input heater
+    to: heat
+    for: !input maximum_heating_duration
+    id: maximum_heating_duration_reached
   - trigger: time
     at: !input surplus_start_time
   - trigger: homeassistant
@@ -335,6 +350,26 @@ triggers:
 conditions: []
 
 actions:
+  - variables:
+      safety_electric_heater_only_helper_entity: !input electric_heater_only_helper
+  - if:
+      - condition: trigger
+        id: maximum_heating_duration_reached
+    then:
+      - if:
+          - condition: template
+            value_template: >-
+              {{ safety_electric_heater_only_helper_entity | count > 0 }}
+        then:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input electric_heater_only_helper
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: !input heater
+        data:
+          hvac_mode: "off"
+      - stop: Maximum continuous heating duration reached
   - variables:
       heater_entity: !input heater
       target_climate_entity: !input target_climate
