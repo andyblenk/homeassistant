@@ -498,9 +498,7 @@ actions:
         {{ not seasonal_mode_activated
            and not safeguard_heating_active
            and requested_temperature_available
-           and normalized_requested_temperature
-               > (reduced_temperature | float
-                  if seasonal_mode_active else eco_temperature | float) }}
+           and normalized_requested_temperature > eco_temperature | float }}
       all_climate_entities: >-
         {{ ([master_climate_entity] + synchronized_climate_entities)
            | unique | list }}
