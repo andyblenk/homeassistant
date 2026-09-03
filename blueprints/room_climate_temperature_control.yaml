@@ -1,7 +1,7 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.9.0
+    Version 0.10.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
@@ -164,6 +164,28 @@ blueprint:
                   value: eco
                 - label: Heat
                   value: heat
+        time_window_1_weekdays:
+          name: Weekdays
+          description: Days on which this time window starts.
+          default: [mon, tue, wed, thu, fri, sat, sun]
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
         time_window_1_start:
           name: Start time
           description: Time at which this window starts.
@@ -201,6 +223,28 @@ blueprint:
                   value: eco
                 - label: Heat
                   value: heat
+        time_window_2_weekdays:
+          name: Weekdays
+          description: Days on which this time window starts.
+          default: [mon, tue, wed, thu, fri, sat, sun]
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
         time_window_2_start:
           name: Start time
           description: Time at which this window starts.
@@ -238,6 +282,28 @@ blueprint:
                   value: eco
                 - label: Heat
                   value: heat
+        time_window_3_weekdays:
+          name: Weekdays
+          description: Days on which this time window starts.
+          default: [mon, tue, wed, thu, fri, sat, sun]
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
         time_window_3_start:
           name: Start time
           description: Time at which this window starts.
@@ -275,6 +341,28 @@ blueprint:
                   value: eco
                 - label: Heat
                   value: heat
+        time_window_4_weekdays:
+          name: Weekdays
+          description: Days on which this time window starts.
+          default: [mon, tue, wed, thu, fri, sat, sun]
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
         time_window_4_start:
           name: Start time
           description: Time at which this window starts.
@@ -423,18 +511,22 @@ actions:
       temperature_step: 0.5
       time_window_1_enabled: !input time_window_1_enabled
       time_window_1_mode: !input time_window_1_mode
+      time_window_1_weekdays: !input time_window_1_weekdays
       time_window_1_start: !input time_window_1_start
       time_window_1_end: !input time_window_1_end
       time_window_2_enabled: !input time_window_2_enabled
       time_window_2_mode: !input time_window_2_mode
+      time_window_2_weekdays: !input time_window_2_weekdays
       time_window_2_start: !input time_window_2_start
       time_window_2_end: !input time_window_2_end
       time_window_3_enabled: !input time_window_3_enabled
       time_window_3_mode: !input time_window_3_mode
+      time_window_3_weekdays: !input time_window_3_weekdays
       time_window_3_start: !input time_window_3_start
       time_window_3_end: !input time_window_3_end
       time_window_4_enabled: !input time_window_4_enabled
       time_window_4_mode: !input time_window_4_mode
+      time_window_4_weekdays: !input time_window_4_weekdays
       time_window_4_start: !input time_window_4_start
       time_window_4_end: !input time_window_4_end
       safeguard_1_enabled: !input safeguard_1_enabled
@@ -448,28 +540,52 @@ actions:
       time_window_1_active: >-
         {% set start = today_at(time_window_1_start) %}
         {% set end = today_at(time_window_1_end) %}
+        {% set day_index = now().weekday() %}
+        {% if start > end and now() < end %}
+          {% set day_index = (day_index - 1) % 7 %}
+        {% endif %}
+        {% set weekday = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][day_index] %}
         {{ time_window_1_enabled
+           and weekday in time_window_1_weekdays
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_2_active: >-
         {% set start = today_at(time_window_2_start) %}
         {% set end = today_at(time_window_2_end) %}
+        {% set day_index = now().weekday() %}
+        {% if start > end and now() < end %}
+          {% set day_index = (day_index - 1) % 7 %}
+        {% endif %}
+        {% set weekday = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][day_index] %}
         {{ time_window_2_enabled
+           and weekday in time_window_2_weekdays
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_3_active: >-
         {% set start = today_at(time_window_3_start) %}
         {% set end = today_at(time_window_3_end) %}
+        {% set day_index = now().weekday() %}
+        {% if start > end and now() < end %}
+          {% set day_index = (day_index - 1) % 7 %}
+        {% endif %}
+        {% set weekday = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][day_index] %}
         {{ time_window_3_enabled
+           and weekday in time_window_3_weekdays
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
       time_window_4_active: >-
         {% set start = today_at(time_window_4_start) %}
         {% set end = today_at(time_window_4_end) %}
+        {% set day_index = now().weekday() %}
+        {% if start > end and now() < end %}
+          {% set day_index = (day_index - 1) % 7 %}
+        {% endif %}
+        {% set weekday = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][day_index] %}
         {{ time_window_4_enabled
+           and weekday in time_window_4_weekdays
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
