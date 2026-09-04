@@ -1,7 +1,7 @@
 blueprint:
   name: Electric heater control
   description: >-
-    Version 1.2.0
+    Version 1.3.1
 
     Controls an electric heater through a Home Assistant climate entity.
 
@@ -13,6 +13,7 @@ blueprint:
     The blueprint expects the heater to support the HVAC modes heat and off as
     well as the configured low and medium presets. A high preset can optionally
     be enabled for large temperature differences. It is disabled by default.
+    High is limited to a configurable duration per heating cycle.
     A configurable runtime limit switches off continuously enabled heating.
   domain: automation
   author: Andreas Blenk
@@ -177,6 +178,18 @@ blueprint:
               step: 0.5
               unit_of_measurement: °C
               mode: box
+        maximum_high_duration:
+          name: Maximum high-level duration
+          description: >-
+            Maximum time at high before normal medium/low regulation resumes for this cycle.
+          default: 15
+          selector:
+            number:
+              min: 15
+              max: 240
+              step: 15
+              unit_of_measurement: min
+              mode: slider
 
     presets:
       name: Heater power presets
@@ -331,12 +344,21 @@ triggers:
     to: heat
     for: !input maximum_heating_duration
     id: maximum_heating_duration_reached
+  - trigger: state
+    entity_id: !input heater
+    attribute: preset_mode
+    to: !input high_preset
+    for:
+      minutes: !input maximum_high_duration
+    id: maximum_high_duration_reached
   - trigger: time
     at: !input surplus_start_time
   - trigger: homeassistant
     event: start
+    id: home_assistant_started
   - trigger: event
     event_type: automation_reloaded
+    id: automations_reloaded
 
 conditions: []
 
@@ -386,6 +408,11 @@ actions:
       high_enabled: !input high_enabled
       high_preset: !input high_preset
       high_temperature_difference: !input high_temperature_difference
+      high_must_end: >-
+        {{ trigger.id | default('') == 'maximum_high_duration_reached'
+           or (trigger.id | default('')
+                 in ['home_assistant_started', 'automations_reloaded']
+               and state_attr(heater_entity, 'preset_mode') == high_preset) }}
       current_temperature: "{{ states(temperature_sensor_entity) | float(0) }}"
       safety_conditions_met: >-
         {{ (automatic_control_entity | count == 0
@@ -447,7 +474,10 @@ actions:
                 and current_temperature >= target_temperature %}
           off
         {% elif high_enabled
-                and current_temperature < target_temperature - high_temperature_difference %}
+                and not high_must_end
+                and current_temperature < target_temperature - high_temperature_difference
+                and (not heater_is_heating
+                     or state_attr(heater_entity, 'preset_mode') == high_preset) %}
           {{ high_preset }}
         {% elif current_temperature >= target_temperature - low_preset_range %}
           {{ low_preset }}

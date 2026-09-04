@@ -60,7 +60,7 @@ Inputs:
 ### Electric Heater Control
 Path: `blueprints/electric_heater_control.yaml`
 
-Controls an electric heater exposed as a Climate entity. It compares a room temperature sensor with the target temperature of another Climate entity and selects `off`, low, medium, or optionally high power. Preset names are configurable for compatibility with different heaters.
+Controls an electric heater exposed as a Climate entity. It compares a room temperature sensor with the target temperature of another Climate entity and selects `off`, low, medium, or optionally high power. Preset names are configurable for compatibility with different heaters. High can be limited to a configurable duration per heating cycle and then falls back to the normal medium/low regulation.
 
 Automatic control, presence, and a window contact provide the main safety conditions. Normal heating can optionally depend on PV power or battery state of charge. A Timer can temporarily request continuous heating at medium power, while PV surplus heating can use a directly configured higher target temperature after a configured start time.
 
@@ -72,7 +72,7 @@ Inputs:
 - Optional automatic-control Input Boolean
 - Presence entity and optional window sensor
 - Optional continuous-heating Timer
-- Low, medium, and optional high presets with temperature thresholds
+- Low, medium, and optional high presets with temperature thresholds and a maximum high duration
 - Optional PV-power and battery sensors with thresholds
 - Optional PV-surplus target temperature, PV threshold, and start time
 - Optional Electric-heater-only Input Boolean output
