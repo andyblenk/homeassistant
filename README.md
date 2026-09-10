@@ -1,109 +1,38 @@
-# Smart Home Blueprints and Scripts
-Collection of Home Assistant blueprints, automation examples, and practical scripts for real-world smart-home setups.
+# Home Assistant Blueprints and Device Integration Guides
 
-## Home Assistant Blueprints
+Practical Home Assistant blueprints, device setup guides, and documentation for custom integrations. The configurations in this repository were created for real smart-home installations and are documented so they can be understood, reproduced, and adapted.
 
-### Smart Motion Light Control
-Path: `blueprints/smart_motion_light_control.yaml`
+The repository focuses on useful solutions rather than large frameworks. Each guide explains the relevant Home Assistant settings, device data points, compatibility requirements, and known limitations.
 
-Turns lights on when motion is detected while respecting ambient brightness (lux) and a user-defined light mode (auto/on/off). Uses a timer for auto-off and a short cooldown window where lux is ignored to prevent flicker.
+## Repository contents
 
-Requires an `input_select` with values `auto`, `on`, `off` to control the mode:
-- `auto`: motion-based control using the configured settings
-- `on`: always on
-- `off`: always off (motion ignored)
+| Area | Description |
+|---|---|
+| [Blueprints](blueprints/README.md) | Reusable Home Assistant automation blueprints for heating, lighting, ventilation, doorbells, and room control. |
+| [Device guides](devices/README.md) | Tested setup instructions for integrating specific smart-home devices with Home Assistant. |
+| [General guides](guides/README.md) | Shared procedures such as finding a Tuya Device ID and Local Key. |
+| [Custom integrations](custom-integrations/README.md) | Documentation for custom or extended Home Assistant integrations used by these device guides. |
 
-Supports multiple motion sensors and multiple lights that can be switched together.
+## Available device guides
 
-Inputs:
-- Motion sensors (binary_sensor/switch)
-- Light switches
-- Lux sensor and threshold
-- Light mode input_select with labels for auto/on/off
-- Timer entity and auto-off durations
+- [EUROM electric heaters with LocalTuya](devices/eurom-electric-heaters.md) — covers both EUROM hardware generations, including newer Tuya protocol 3.5 models.
+- [EMKE heated towel rack with LocalTuya](devices/emke-heated-towel-rack.md) — switch, target temperature, timer, remaining time, temperature, and operating-state entities.
 
-### HomePods Doorbell
-Path: `blueprints/homepod_doorbell.yaml`
+## Available custom integration
 
-Plays a doorbell sound on selected HomePods/AirPlay speakers when a doorbell trigger fires. Supports adjustable volume and a custom MP3 path.
+- [Local Tuya AB](custom-integrations/local-tuya-ab.md) — an unofficial LocalTuya fork adding Tuya protocol 3.5 support, EUROM climate mappings, and optional integer writes for Number entities.
 
-Inputs:
-- Doorbell trigger entity
-- Media players (HomePods/AirPlay)
-- Volume (0.1–1.0)
-- Ringtone path (MP3)
+## Philosophy
 
-### Limodor Fan Control
-Path: `blueprints/limodor_control.yaml`
+- **Practical:** configurations are based on devices and automations used in a real Home Assistant installation.
+- **Reproducible:** important parameters, data points, versions, and setup steps are recorded.
+- **Local-first:** local device control is preferred where it provides reliable operation and useful Home Assistant entities.
+- **Transparent:** custom changes and differences from upstream projects are documented clearly.
+- **Focused:** the repository contains only solutions that are useful and maintainable.
+- **Safe to share:** passwords, tokens, Local Keys, private Device IDs, and private network addresses are never published.
 
-Controls the signal line of a Limodor fan while leaving its permanent power supply untouched. The fan can be requested by up to three state-based entities or Input Buttons, three independent daily schedules, and an optional humidity controller with up to two sensors.
+## Important notice
 
-State-based sources support individual start delays and minimum signal durations. Input Buttons create timed requests. Schedules support selectable weekdays, configurable durations, and optional on/off conditions. Humidity control can react to a rising value above an activation threshold and periodically recheck for persistently high humidity.
+These projects and guides are provided without warranty. Create a Home Assistant backup before replacing integrations or changing an existing configuration. Device firmware, Home Assistant, HACS, and third-party integrations can change over time, so verify that a guide still matches your environment.
 
-Overlapping requests run in parallel. The signal line remains on until the last active request ends. A configurable global safety timeout forces the signal line off if it remains active too long. On Home Assistant startup or automation reload, active sources and humidity conditions are reevaluated deterministically.
-
-Important:
-- Requires Home Assistant 2024.10.0 or newer
-- Controls only the Limodor signal line, not its permanent power supply
-- The Limodor's internal run-on time starts after the signal line is switched off and is not included in configured durations
-- Humidity control requires a dedicated Timer helper for cycle lockout
-
-Inputs:
-- Limodor signal switch and global safety timeout
-- Up to three source entities (light, switch, binary sensor, Input Boolean, or Input Button)
-- Per-source start delay and minimum signal duration
-- Up to three schedules with weekdays, duration, and optional condition
-- Up to two humidity sensors
-- Activation and persistent-humidity thresholds
-- Humidity signal duration, periodic check interval, recheck pause, and Timer helper
-
-### Electric Heater Control
-Path: `blueprints/electric_heater_control.yaml`
-
-Controls an electric heater exposed as a Climate entity. It compares a room temperature sensor with the target temperature of another Climate entity and selects `off`, low, medium, or optionally high power. Preset names are configurable for compatibility with different heaters. High can be limited to a configurable duration per heating cycle and then falls back to the normal medium/low regulation.
-
-Automatic control, presence, and a window contact provide the main safety conditions. Normal heating can optionally depend on PV power or battery state of charge. A Timer can temporarily request continuous heating at medium power, while PV surplus heating can use a directly configured higher target temperature after a configured start time.
-
-A configurable continuous-runtime limit switches the heater off after five hours by default. A later regular trigger may start a new heating cycle when all conditions are still met.
-
-Inputs:
-- Electric-heater and target-temperature Climate entities
-- Room temperature sensor
-- Optional automatic-control Input Boolean
-- Presence entity and optional window sensor
-- Optional continuous-heating Timer
-- Low, medium, and optional high presets with temperature thresholds and a maximum high duration
-- Optional PV-power and battery sensors with thresholds
-- Optional PV-surplus target temperature, PV threshold, and start time
-- Optional Electric-heater-only Input Boolean output
-- Maximum continuous heating duration, default 5 hours
-
-### Room Climate Temperature Control
-Path: `blueprints/room_climate_temperature_control.yaml`
-
-Controls the target temperature of one room. A Home Assistant Climate entity acts as the master and synchronizes target-temperature changes bidirectionally with optional additional wall or hardware thermostats. Only target temperatures are synchronized; HVAC modes, presets, and measured temperatures remain untouched.
-
-Manual changes from any connected thermostat are rounded to a common step, stored in an Input Number, and distributed to the other thermostats without creating synchronization loops. Selected Reduced conditions, such as vacation or nobody at home, apply Reduced. Deliberate preheating can override them through any synchronized thermostat or the Heating/Eco switch. Optional Comfort conditions replace Normal with Comfort immediately and return to Normal only after all conditions have remained off for five minutes. Up to four optional weekday-aware time windows can independently apply Reduced, Eco, or Heat. A manual temperature or Heating/Eco change overrides only the currently active time window; the next window starts normally.
-
-Inputs:
-- Master Climate entity and optional additional Climate thermostats
-- Desired-temperature Input Number
-- Heating/Eco Input Boolean
-- Normal, Comfort, Eco, and Reduced temperatures
-- Optional Reduced-condition Boolean, binary-sensor, and Timer entities
-- Optional Comfort-condition entities
-- Up to four optional weekday-aware time windows using Reduced, Eco, or Heat
-- Up to three optional heating safeguard times with one shared blocker entity
-
-### Viessmann Heating Control
-Path: `blueprints/viessmann_heating_control.yaml`
-
-Controls the operating mode of a Viessmann heating system through the ViCare integration. Away conditions select `standby`, disabling heating and domestic hot water. An optional Pre-heat Timer overrides absence and selects `dhw` during summer or `dhwAndHeating` otherwise. Summer conditions select `dhw` for domestic hot water only. With no active condition, `dhwAndHeating` restores normal scheduled heating and hot water operation.
-
-The blueprint accepts multiple Boolean, binary-sensor, or Timer entities for both condition groups. It reevaluates changes immediately and performs a 15-minute safety check while avoiding repeated ViCare calls when the correct mode is already active.
-
-Inputs:
-- Viessmann ViCare Climate entity
-- Optional away-condition entities, such as nobody at home or vacation
-- Optional summer-condition entities
-- Optional Pre-heat Timer
+Home Assistant, Tuya, Smart Life, LocalTuya, EUROM, EMKE, Viessmann, HomePod, and other product names belong to their respective owners. This repository is not officially affiliated with or endorsed by those projects or companies.
