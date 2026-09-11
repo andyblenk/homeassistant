@@ -1,7 +1,7 @@
 blueprint:
   name: Electric heater control
   description: >-
-    Version 1.3.1
+    Version 1.3.2
 
     Controls an electric heater through a Home Assistant climate entity.
 
@@ -9,6 +9,10 @@ blueprint:
     switched off when automatic control is disabled, nobody is present, a window
     is open, or required values are unavailable. Optional battery and PV sensors
     can restrict normal heating to times with sufficient available energy.
+
+    PV surplus heating uses medium power until its own target temperature is
+    reached. When no surplus heating is needed, normal room-temperature control
+    continues with its regular target and energy conditions.
 
     The blueprint expects the heater to support the HVAC modes heat and off as
     well as the configured low and medium presets. A high preset can optionally
@@ -432,54 +436,77 @@ actions:
         {{ pv_power_configured
            and has_value(pv_power_sensor_entity)
            and states(pv_power_sensor_entity) | float(0) > pv_power_threshold | float }}
-      surplus_heating_active: >-
+      surplus_conditions_met: >-
         {{ surplus_heating_enabled
            and now() >= today_at(surplus_start_time)
            and pv_power_configured
            and has_value(pv_power_sensor_entity)
            and states(pv_power_sensor_entity) | float(0)
                > surplus_pv_threshold | float }}
-      target_temperature: >-
-        {% if surplus_heating_active %}
-          {{ surplus_target_temperature | float }}
-        {% else %}
-          {{ state_attr(target_climate_entity, 'temperature') | float(0) }}
-        {% endif %}
-      required_values_available: >-
+      normal_target_available: >-
+        {{ state_attr(target_climate_entity, 'temperature') is number }}
+      normal_target_temperature: >-
+        {{ state_attr(target_climate_entity, 'temperature') | float(0) }}
+      base_values_available: >-
         {{ has_value(heater_entity)
-           and has_value(temperature_sensor_entity)
-           and (surplus_heating_active
-                or state_attr(target_climate_entity, 'temperature') is number) }}
+           and has_value(temperature_sensor_entity) }}
+      required_values_available: >-
+        {{ base_values_available
+           and (surplus_conditions_met or normal_target_available) }}
       normal_energy_available: >-
         {{ (not battery_configured and not pv_power_configured)
            or battery_energy_available
            or pv_energy_available }}
       heater_is_heating: "{{ is_state(heater_entity, 'heat') }}"
-      heating_allowed: >-
-        {{ required_values_available
+      continuous_heating_allowed: >-
+        {{ continuous_heating
+           and required_values_available
+           and safety_conditions_met }}
+      surplus_heating_required: >-
+        {{ base_values_available
            and safety_conditions_met
-           and (continuous_heating
-                or surplus_heating_active
-                or normal_energy_available) }}
+           and surplus_conditions_met
+           and ((heater_is_heating
+                 and current_temperature
+                     < (surplus_target_temperature | float)
+                       + (switch_off_tolerance | float))
+                or (not heater_is_heating
+                    and current_temperature
+                        < (surplus_target_temperature | float))) }}
+      normal_heating_allowed: >-
+        {{ base_values_available
+           and normal_target_available
+           and safety_conditions_met
+           and normal_energy_available }}
+      active_target_temperature: >-
+        {% if surplus_heating_required %}
+          {{ surplus_target_temperature | float }}
+        {% else %}
+          {{ normal_target_temperature | float }}
+        {% endif %}
       heating_level: >-
-        {% if not heating_allowed %}
-          off
-        {% elif continuous_heating %}
+        {% if continuous_heating_allowed %}
           {{ medium_preset }}
+        {% elif surplus_heating_required %}
+          {{ medium_preset }}
+        {% elif not normal_heating_allowed %}
+          off
         {% elif heater_is_heating
                 and current_temperature
-                    >= target_temperature + switch_off_tolerance %}
+                    >= normal_target_temperature + switch_off_tolerance %}
           off
         {% elif not heater_is_heating
-                and current_temperature >= target_temperature %}
+                and current_temperature >= normal_target_temperature %}
           off
         {% elif high_enabled
                 and not high_must_end
-                and current_temperature < target_temperature - high_temperature_difference
+                and current_temperature
+                    < normal_target_temperature - high_temperature_difference
                 and (not heater_is_heating
                      or state_attr(heater_entity, 'preset_mode') == high_preset) %}
           {{ high_preset }}
-        {% elif current_temperature >= target_temperature - low_preset_range %}
+        {% elif current_temperature
+                >= normal_target_temperature - low_preset_range %}
           {{ low_preset }}
         {% else %}
           {{ medium_preset }}
@@ -487,7 +514,7 @@ actions:
       electric_heater_only_active: >-
         {{ heating_level != 'off'
            and current_temperature
-               >= target_temperature - electric_heater_only_difference }}
+               >= active_target_temperature - electric_heater_only_difference }}
       heater_should_switch_off: >-
         {{ heating_level == 'off'
            and has_value(heater_entity)
