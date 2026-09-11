@@ -26,7 +26,7 @@ Main inputs:
 - Electric-heater and target-temperature Climate entities
 - Room temperature sensor
 - Optional automatic-control helper
-- Presence entity and optional window sensor
+- Presence entity and optional multiple window sensors
 - Optional Timer for continuous heating
 - Configurable low, medium, and high presets
 - Optional photovoltaic-power and battery sensors

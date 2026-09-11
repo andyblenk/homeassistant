@@ -1,13 +1,14 @@
 blueprint:
   name: Electric heater control
   description: >-
-    Version 1.3.2
+    Version 1.3.3
 
     Controls an electric heater through a Home Assistant climate entity.
 
     The heater follows the target temperature of another climate entity and is
     switched off when automatic control is disabled, nobody is present, a window
-    is open, or required values are unavailable. Optional battery and PV sensors
+    is open, or required values are unavailable. Multiple window sensors can be
+    monitored for the same room. Optional battery and PV sensors
     can restrict normal heating to times with sufficient available energy.
 
     PV surplus heating uses medium power until its own target temperature is
@@ -78,11 +79,14 @@ blueprint:
                 - domain: input_boolean
                 - domain: binary_sensor
         window_sensor:
-          name: Window sensor
-          description: Optional sensor. Off means closed; empty disables this check.
+          name: Window sensors
+          description: >-
+            Optional sensors. All selected sensors must be off; empty disables
+            this check.
           default: []
           selector:
             entity:
+              multiple: true
               filter:
                 - domain: binary_sensor
         maximum_heating_duration:
@@ -393,7 +397,7 @@ actions:
       temperature_sensor_entity: !input temperature_sensor
       automatic_control_entity: !input automatic_control
       presence_entity: !input presence_entity
-      window_sensor_entity: !input window_sensor
+      window_sensor_entities: !input window_sensor
       continuous_heating_timer_entity: !input continuous_heating_timer
       electric_heater_only_helper_entity: !input electric_heater_only_helper
       electric_heater_only_difference: !input electric_heater_only_difference
@@ -422,8 +426,10 @@ actions:
         {{ (automatic_control_entity | count == 0
             or is_state(automatic_control_entity, 'on'))
            and is_state(presence_entity, 'on')
-           and (window_sensor_entity | count == 0
-                or is_state(window_sensor_entity, 'off')) }}
+           and (window_sensor_entities | count == 0
+                or expand(window_sensor_entities)
+                   | rejectattr('state', 'eq', 'off')
+                   | list | count == 0) }}
       continuous_heating: >-
         {{ is_state(continuous_heating_timer_entity, 'active') }}
       battery_configured: "{{ battery_sensor_entity | count > 0 }}"
