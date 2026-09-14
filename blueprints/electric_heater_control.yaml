@@ -1,15 +1,16 @@
 blueprint:
   name: Electric heater control
   description: >-
-    Version 1.3.3
+    Version 1.3.4
 
     Controls an electric heater through a Home Assistant climate entity.
 
     The heater follows the target temperature of another climate entity and is
     switched off when automatic control is disabled, nobody is present, a window
     is open, or required values are unavailable. Multiple window sensors can be
-    monitored for the same room. Optional battery and PV sensors
-    can restrict normal heating to times with sufficient available energy.
+    monitored for the same room. Optional battery and PV sensors can restrict
+    normal heating to times with sufficient available energy. These energy
+    restrictions can be ignored explicitly while all other conditions remain active.
 
     PV surplus heating uses medium power until its own target temperature is
     reached. When no surplus heating is needed, normal room-temperature control
@@ -250,6 +251,15 @@ blueprint:
       description: >-
         Restrict normal heating based on optional PV power and battery charge.
       input:
+        ignore_energy_restrictions:
+          name: Ignore PV and battery restrictions
+          description: >-
+            Always allow normal temperature-based heating regardless of the PV
+            power and battery charge. Presence, window, automatic-control,
+            temperature, and runtime safety conditions remain active.
+          default: false
+          selector:
+            boolean:
         battery_sensor:
           name: Battery state of charge
           description: Battery sensor used for heating approval. Empty disables it.
@@ -401,6 +411,7 @@ actions:
       continuous_heating_timer_entity: !input continuous_heating_timer
       electric_heater_only_helper_entity: !input electric_heater_only_helper
       electric_heater_only_difference: !input electric_heater_only_difference
+      ignore_energy_restrictions: !input ignore_energy_restrictions
       battery_sensor_entity: !input battery_sensor
       battery_threshold: !input battery_threshold
       pv_power_sensor_entity: !input pv_power_sensor
@@ -460,7 +471,8 @@ actions:
         {{ base_values_available
            and (surplus_conditions_met or normal_target_available) }}
       normal_energy_available: >-
-        {{ (not battery_configured and not pv_power_configured)
+        {{ ignore_energy_restrictions
+           or (not battery_configured and not pv_power_configured)
            or battery_energy_available
            or pv_energy_available }}
       heater_is_heating: "{{ is_state(heater_entity, 'heat') }}"

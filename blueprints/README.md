@@ -19,7 +19,7 @@ You can also copy a YAML file manually into the appropriate Home Assistant bluep
 
 Controls an electric heater exposed as a Home Assistant Climate entity. It compares the current room temperature with the target temperature of another Climate entity and selects `off`, low, medium, or optionally high power.
 
-The high-power preset can be limited to a configurable duration. Automatic control, presence, and a window contact provide the main safety conditions. Normal heating can optionally depend on photovoltaic power or battery state of charge. A Home Assistant Timer can temporarily request continuous heating, while a configurable maximum runtime prevents the heater from remaining enabled indefinitely.
+The high-power preset can be limited to a configurable duration. Automatic control, presence, and window contacts provide the main safety conditions. Normal heating can optionally depend on photovoltaic power or battery state of charge, with an explicit option to ignore these energy restrictions. A Home Assistant Timer can temporarily request continuous heating, while a configurable maximum runtime prevents the heater from remaining enabled indefinitely.
 
 Main inputs:
 
@@ -30,6 +30,7 @@ Main inputs:
 - Optional Timer for continuous heating
 - Configurable low, medium, and high presets
 - Optional photovoltaic-power and battery sensors
+- Optional override for photovoltaic and battery restrictions
 - Maximum continuous heating duration
 
 ## HomePods Doorbell
