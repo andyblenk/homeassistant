@@ -1,7 +1,7 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.10.1
+    Version 0.10.2
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
@@ -9,8 +9,9 @@ blueprint:
     Manual temperature changes are stored as the room's desired temperature.
     Configured conditions can apply Reduced but still allow deliberate
     preheating from any synchronized thermostat or Heating / Eco switch. Optional
-    conditions can use Comfort instead of Normal. Comfort activates immediately
-    and deactivates after five stable minutes. Up to four daily time windows can
+    conditions can apply Reduced, Comfort, or Normal. Their priority is Reduced,
+    then Comfort, then Normal. Comfort and Normal activate immediately and
+    deactivate after five stable minutes. Up to four daily time windows can
     apply Reduced, Eco, or Heat. Up to three optional safeguard checks can end
     heating that was left enabled.
 
@@ -134,6 +135,21 @@ blueprint:
         comfort_condition_entities:
           name: Comfort conditions
           description: Optional entities. Comfort is active while any entity is on.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+    normal_conditions:
+      name: Normal conditions
+      icon: mdi:thermometer
+      collapsed: true
+      input:
+        normal_condition_entities:
+          name: Normal conditions
+          description: Optional entities. Normal is active while any entity is on.
           default: []
           selector:
             entity:
@@ -452,6 +468,15 @@ triggers:
     to: "off"
     for: "00:05:00"
     id: comfort_condition_deactivated
+  - trigger: state
+    entity_id: !input normal_condition_entities
+    to: "on"
+    id: normal_condition_activated
+  - trigger: state
+    entity_id: !input normal_condition_entities
+    to: "off"
+    for: "00:05:00"
+    id: normal_condition_deactivated
   - trigger: time
     at: !input time_window_1_start
     id: time_window_1_started
@@ -509,6 +534,7 @@ actions:
       eco_temperature: !input eco_temperature
       reduced_temperature: !input reduced_temperature
       comfort_condition_entities: !input comfort_condition_entities
+      normal_condition_entities: !input normal_condition_entities
       temperature_step: 0.5
       time_window_1_enabled: !input time_window_1_enabled
       time_window_1_mode: !input time_window_1_mode
@@ -653,6 +679,27 @@ actions:
            and state_attr(master_climate_entity, 'temperature') is number
            and ((state_attr(master_climate_entity, 'temperature') | float
                  - comfort_temperature | float) | abs < 0.01) %}
+        {{ active or waiting_to_deactivate }}
+      normal_mode_active: >-
+        {% set entities = expand(normal_condition_entities) | list %}
+        {% set active = entities | selectattr('state', 'eq', 'on')
+           | list | count > 0 %}
+        {% set all_off = entities | count > 0
+           and entities | rejectattr('state', 'eq', 'off')
+           | list | count == 0 %}
+        {% set ns = namespace(last_change=0) %}
+        {% for entity in entities %}
+          {% set changed = as_timestamp(entity.last_changed) %}
+          {% if changed > ns.last_change %}
+            {% set ns.last_change = changed %}
+          {% endif %}
+        {% endfor %}
+        {% set waiting_to_deactivate = all_off
+           and trigger.id != 'normal_condition_deactivated'
+           and as_timestamp(now()) - ns.last_change < 300
+           and state_attr(master_climate_entity, 'temperature') is number
+           and ((state_attr(master_climate_entity, 'temperature') | float
+                 - normal_temperature | float) | abs < 0.01) %}
         {{ active or waiting_to_deactivate }}
       time_window_config_active: >-
         {{ active_time_window_mode != 'neutral' }}
@@ -834,10 +881,10 @@ actions:
                 and active_time_window_mode == 'heat' %}
           {% set raw = comfort_temperature | float
              if comfort_mode_active else normal_temperature | float %}
-        {% elif comfort_mode_active
-                and normalized_requested_temperature | float
-                    == normal_temperature | float %}
+        {% elif comfort_mode_active %}
           {% set raw = comfort_temperature | float %}
+        {% elif normal_mode_active %}
+          {% set raw = normal_temperature | float %}
         {% else %}
           {% set raw = normalized_requested_temperature | float %}
         {% endif %}
