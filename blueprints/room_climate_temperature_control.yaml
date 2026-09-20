@@ -1,19 +1,20 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.10.2
+    Version 0.11.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
 
-    Manual temperature changes are stored as the room's desired temperature.
-    Configured conditions can apply Reduced but still allow deliberate
-    preheating from any synchronized thermostat or Heating / Eco switch. Optional
-    conditions can apply Reduced, Comfort, or Normal. Their priority is Reduced,
-    then Comfort, then Normal. Comfort and Normal activate immediately and
-    deactivate after five stable minutes. Up to four daily time windows can
-    apply Reduced, Eco, or Heat. Up to three optional safeguard checks can end
-    heating that was left enabled.
+    The Manual / Automatic switch selects whether a manually chosen target
+    temperature is held or the automatic rules control the room. A manual
+    temperature change on any synchronized thermostat enables Manual and is
+    synchronized to the others. Reduced is enforced when it begins, but a
+    later deliberate temperature change can preheat while Reduced remains
+    active. Optional conditions can apply Reduced, Comfort, or Normal.
+    Comfort and Normal activate immediately and deactivate after five stable
+    minutes. Up to four daily time windows can apply Reduced, Eco, or Heat.
+    Up to three safeguard checks can end Manual and return to Automatic.
 
     Only target temperatures are synchronized. HVAC modes, presets, and measured
     temperatures are not changed.
@@ -48,16 +49,9 @@ blueprint:
       name: Room helpers
       icon: mdi:tune-variant
       input:
-        desired_temperature_helper:
-          name: Desired temperature
-          description: Input Number storing the room's last desired temperature.
-          selector:
-            entity:
-              filter:
-                - domain: input_number
         heating_switch:
-          name: Heating / Eco switch
-          description: On selects Normal; off selects Eco when changed manually.
+          name: Manual / Automatic switch
+          description: On holds a manually selected temperature. Off applies the automatic rules.
           selector:
             entity:
               filter:
@@ -68,7 +62,7 @@ blueprint:
       input:
         normal_temperature:
           name: Normal temperature
-          description: Loaded when the Heating / Eco switch is turned on manually.
+          description: Initial Manual temperature and the target for Normal or Heat automation.
           default: 21
           selector:
             number:
@@ -90,7 +84,7 @@ blueprint:
               mode: box
         eco_temperature:
           name: Eco temperature
-          description: Loaded when the Heating / Eco switch is turned off manually.
+          description: Automatic fallback when no higher-priority automatic rule is active.
           default: 18
           selector:
             number:
@@ -101,7 +95,7 @@ blueprint:
               mode: box
         reduced_temperature:
           name: Reduced temperature
-          description: Used during vacation, absence, and Reduced time windows.
+          description: Enforced when a Reduced condition or Reduced time window begins.
           default: 15
           selector:
             number:
@@ -400,7 +394,7 @@ blueprint:
       input:
         safeguard_1_enabled:
           name: Enable safeguard check 1
-          description: Checks at this time whether heating was left enabled.
+          description: Ends Manual and returns to Automatic at this time.
           default: false
           selector:
             boolean:
@@ -412,7 +406,7 @@ blueprint:
             time:
         safeguard_2_enabled:
           name: Enable safeguard check 2
-          description: Checks at this time whether heating was left enabled.
+          description: Ends Manual and returns to Automatic at this time.
           default: false
           selector:
             boolean:
@@ -424,7 +418,7 @@ blueprint:
             time:
         safeguard_3_enabled:
           name: Enable safeguard check 3
-          description: Checks at this time whether heating was left enabled.
+          description: Ends Manual and returns to Automatic at this time.
           default: false
           selector:
             boolean:
@@ -451,11 +445,8 @@ triggers:
     attribute: temperature
     id: climate_temperature_changed
   - trigger: state
-    entity_id: !input desired_temperature_helper
-    id: desired_temperature_changed
-  - trigger: state
     entity_id: !input heating_switch
-    id: heating_switch_changed
+    id: manual_mode_changed
   - trigger: state
     entity_id: !input reduced_condition_entities
     id: reduced_condition_changed
@@ -482,25 +473,25 @@ triggers:
     id: time_window_1_started
   - trigger: time
     at: !input time_window_1_end
-    id: evaluate
+    id: time_window_1_ended
   - trigger: time
     at: !input time_window_2_start
     id: time_window_2_started
   - trigger: time
     at: !input time_window_2_end
-    id: evaluate
+    id: time_window_2_ended
   - trigger: time
     at: !input time_window_3_start
     id: time_window_3_started
   - trigger: time
     at: !input time_window_3_end
-    id: evaluate
+    id: time_window_3_ended
   - trigger: time
     at: !input time_window_4_start
     id: time_window_4_started
   - trigger: time
     at: !input time_window_4_end
-    id: evaluate
+    id: time_window_4_ended
   - trigger: time
     at: !input safeguard_1_time
     id: safeguard_1
@@ -515,10 +506,10 @@ triggers:
     id: evaluate
   - trigger: homeassistant
     event: start
-    id: evaluate
+    id: startup
   - trigger: event
     event_type: automation_reloaded
-    id: evaluate
+    id: reloaded
 
 conditions: []
 
@@ -526,7 +517,6 @@ actions:
   - variables:
       master_climate_entity: !input master_climate
       synchronized_climate_entities: !input synchronized_climates
-      desired_temperature_helper_entity: !input desired_temperature_helper
       heating_switch_entity: !input heating_switch
       reduced_condition_entities: !input reduced_condition_entities
       normal_temperature: !input normal_temperature
@@ -561,6 +551,11 @@ actions:
       safeguard_3_enabled: !input safeguard_3_enabled
       safeguard_blocker: !input safeguard_blocker
       sync_tolerance: 0.01
+      trigger_id: >-
+        {{ trigger.id if trigger is defined and trigger.id is defined else 'evaluate' }}
+      all_climate_entities: >-
+        {{ ([master_climate_entity] + synchronized_climate_entities)
+           | unique | list }}
       reduced_condition_active: >-
         {{ (expand(reduced_condition_entities)
             | selectattr('state', 'eq', 'on') | list | count > 0)
@@ -641,24 +636,6 @@ actions:
         {% else %}
           neutral
         {% endif %}
-      active_time_window_started_timestamp: >-
-        {% set ns = namespace(starts=[]) %}
-        {% set current = as_timestamp(now()) %}
-        {% for active, start_value, end_value in [
-             (time_window_1_active, time_window_1_start, time_window_1_end),
-             (time_window_2_active, time_window_2_start, time_window_2_end),
-             (time_window_3_active, time_window_3_start, time_window_3_end),
-             (time_window_4_active, time_window_4_start, time_window_4_end)] %}
-          {% if active %}
-            {% set start = as_timestamp(today_at(start_value)) %}
-            {% set end = as_timestamp(today_at(end_value)) %}
-            {% if start > end and current < end %}
-              {% set start = start - 86400 %}
-            {% endif %}
-            {% set ns.starts = ns.starts + [start] %}
-          {% endif %}
-        {% endfor %}
-        {{ ns.starts | max if ns.starts | count > 0 else 0 }}
       comfort_mode_active: >-
         {% set entities = expand(comfort_condition_entities) | list %}
         {% set active = entities | selectattr('state', 'eq', 'on')
@@ -674,7 +651,7 @@ actions:
           {% endif %}
         {% endfor %}
         {% set waiting_to_deactivate = all_off
-           and trigger.id != 'comfort_condition_deactivated'
+           and trigger_id != 'comfort_condition_deactivated'
            and as_timestamp(now()) - ns.last_change < 300
            and state_attr(master_climate_entity, 'temperature') is number
            and ((state_attr(master_climate_entity, 'temperature') | float
@@ -695,44 +672,35 @@ actions:
           {% endif %}
         {% endfor %}
         {% set waiting_to_deactivate = all_off
-           and trigger.id != 'normal_condition_deactivated'
+           and trigger_id != 'normal_condition_deactivated'
            and as_timestamp(now()) - ns.last_change < 300
            and state_attr(master_climate_entity, 'temperature') is number
            and ((state_attr(master_climate_entity, 'temperature') | float
                  - normal_temperature | float) | abs < 0.01) %}
         {{ active or waiting_to_deactivate }}
-      time_window_config_active: >-
-        {{ active_time_window_mode != 'neutral' }}
-      time_window_target_temperature: >-
-        {% if active_time_window_mode == 'reduced' %}
-          {{ reduced_temperature | float }}
+      reduced_policy_active: >-
+        {{ reduced_condition_active or active_time_window_mode == 'reduced' }}
+      automatic_temperature: >-
+        {% if reduced_policy_active %}
+          {% set raw = reduced_temperature | float %}
         {% elif active_time_window_mode == 'eco' %}
-          {{ eco_temperature | float }}
+          {% set raw = eco_temperature | float %}
         {% elif active_time_window_mode == 'heat' %}
-          {{ comfort_temperature | float
-             if comfort_mode_active else normal_temperature | float }}
+          {% set raw = comfort_temperature | float
+             if comfort_mode_active else normal_temperature | float %}
+        {% elif comfort_mode_active %}
+          {% set raw = comfort_temperature | float %}
+        {% elif normal_mode_active %}
+          {% set raw = normal_temperature | float %}
         {% else %}
-          0
+          {% set raw = eco_temperature | float %}
         {% endif %}
-      time_window_reset_triggered: >-
-        {{ (trigger.id == 'time_window_1_started' and time_window_1_active)
-           or (trigger.id == 'time_window_2_started' and time_window_2_active)
-           or (trigger.id == 'time_window_3_started' and time_window_3_active)
-           or (trigger.id == 'time_window_4_started' and time_window_4_active) }}
-      reduced_condition_activated: >-
-        {{ trigger.id == 'reduced_condition_changed'
-           and trigger.to_state is not none
-           and trigger.to_state.state in ['on', 'active'] }}
-      stored_temperature_available: >-
-        {{ has_value(desired_temperature_helper_entity) }}
-      stored_temperature: >-
-        {{ states(desired_temperature_helper_entity) | float(0) }}
+        {{ ((raw / temperature_step | float) | round(0)
+            * temperature_step | float) | round(2) }}
+      manual_mode_active: >-
+        {{ is_state(heating_switch_entity, 'on') }}
       climate_change_triggered: >-
-        {{ trigger.id == 'climate_temperature_changed' }}
-      climate_change_is_external: >-
-        {{ climate_change_triggered
-           and trigger.to_state is not none
-           and trigger.to_state.context.parent_id is none }}
+        {{ trigger_id == 'climate_temperature_changed' }}
       source_temperature_available: >-
         {{ climate_change_triggered
            and trigger.to_state is not none
@@ -741,191 +709,127 @@ actions:
         {{ source_temperature_available
            and state_attr(trigger.entity_id, 'temperature') is number
            and ((state_attr(trigger.entity_id, 'temperature') | float
-                 - trigger.to_state.attributes.temperature | float) | abs < 0.01) }}
+                 - trigger.to_state.attributes.temperature | float) | abs
+                < sync_tolerance | float) }}
       source_temperature: >-
         {% set raw = trigger.to_state.attributes.temperature | float(0)
            if source_temperature_available else 0 %}
         {{ ((raw / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
-      safeguard_check_due: >-
-        {{ (trigger.id == 'safeguard_1'
-            and safeguard_1_enabled)
-           or (trigger.id == 'safeguard_2'
-               and safeguard_2_enabled)
-           or (trigger.id == 'safeguard_3'
-               and safeguard_3_enabled) }}
-      safeguard_blocked: >-
-        {{ safeguard_blocker | count > 0
-           and is_state(safeguard_blocker, 'on') }}
-      safeguard_heating_active: >-
-        {{ safeguard_check_due
-           and not safeguard_blocked
-           and is_state(heating_switch_entity, 'on')
-           and ((stored_temperature_available
-                 and stored_temperature > eco_temperature | float)
-                or (state_attr(master_climate_entity, 'temperature') is number
-                    and state_attr(master_climate_entity, 'temperature') | float
-                        > eco_temperature | float)) }}
-      heating_switch_change_is_external: >-
-        {{ trigger.id == 'heating_switch_changed'
-           and trigger.to_state is not none
-           and trigger.to_state.context.parent_id is none }}
-      manual_heating_switch_change: >-
-        {{ heating_switch_change_is_external }}
-      manual_time_window_temperature_change: >-
-        {{ time_window_config_active
-           and climate_change_is_external
-           and source_temperature_available
-           and source_temperature_is_current }}
-      manual_time_window_change: >-
-        {{ time_window_config_active
-           and (manual_time_window_temperature_change
-                or manual_heating_switch_change) }}
-      time_window_override_inferred: >-
-        {% set ns = namespace(manual_climate=false) %}
-        {% for climate_entity in
-             ([master_climate_entity] + synchronized_climate_entities) %}
-          {% if state_attr(climate_entity, 'temperature') is number
-                and ((state_attr(climate_entity, 'temperature') | float
-                      - stored_temperature | float) | abs < 0.01)
-                and states[climate_entity].context.parent_id is none
-                and as_timestamp(states[climate_entity].last_updated)
-                    >= active_time_window_started_timestamp | float %}
-            {% set ns.manual_climate = true %}
-          {% endif %}
-        {% endfor %}
-        {{ time_window_config_active
-           and stored_temperature_available
-           and state_attr(master_climate_entity, 'temperature') is number
-           and ((state_attr(master_climate_entity, 'temperature') | float
-                 - stored_temperature | float) | abs < 0.01)
-           and ((state_attr(master_climate_entity, 'temperature') | float
-                 - time_window_target_temperature | float) | abs >= 0.01)
-           and (as_timestamp(states[desired_temperature_helper_entity].last_updated)
-                    >= active_time_window_started_timestamp | float
-                or as_timestamp(states[heating_switch_entity].last_updated)
-                    >= active_time_window_started_timestamp | float
-                or ns.manual_climate) }}
-      time_window_override_active: >-
-        {{ time_window_config_active
-           and not time_window_reset_triggered
-           and (manual_time_window_change or time_window_override_inferred) }}
-      manual_reduced_temperature_change: >-
-        {{ reduced_condition_active
-           and climate_change_is_external
-           and source_temperature_available
-           and source_temperature_is_current }}
-      manual_preheat_temperature_change: >-
-        {{ manual_reduced_temperature_change
-           and source_temperature | float > eco_temperature | float }}
-      manual_preheat_active: >-
-        {{ reduced_condition_active
-           and not reduced_condition_activated
-           and not safeguard_heating_active
-           and (manual_preheat_temperature_change
-                or (is_state(heating_switch_entity, 'on')
-                    and not manual_reduced_temperature_change)) }}
-      forced_reduced_active: >-
-        {{ reduced_condition_active and not manual_preheat_active }}
-      time_window_mode_active: >-
-        {{ not manual_preheat_active
-           and time_window_config_active
-           and not time_window_override_active }}
-      automatic_temperature_active: >-
-        {{ forced_reduced_active or time_window_mode_active }}
-      requested_temperature_available: >-
-        {{ (climate_change_triggered
-            and climate_change_is_external
-            and source_temperature_available
-            and source_temperature_is_current
-            and ((not reduced_condition_active
-                  and not automatic_temperature_active)
-                 or manual_reduced_temperature_change
-                 or manual_time_window_temperature_change))
-           or manual_heating_switch_change
-           or safeguard_heating_active
-           or stored_temperature_available }}
-      requested_temperature: >-
-        {% if climate_change_triggered
-              and climate_change_is_external
-              and source_temperature_available
-              and source_temperature_is_current
-              and ((not reduced_condition_active
-                    and not automatic_temperature_active)
-                   or manual_reduced_temperature_change
-                   or manual_time_window_temperature_change) %}
-          {{ source_temperature }}
-        {% elif manual_heating_switch_change %}
-          {{ normal_temperature | float
-             if is_state(heating_switch_entity, 'on')
-             else eco_temperature | float }}
-        {% elif safeguard_heating_active %}
-          {{ eco_temperature | float }}
-        {% else %}
-          {{ stored_temperature }}
+      other_climate_differs_from_source: >-
+        {% set ns = namespace(differs=false) %}
+        {% if source_temperature_is_current %}
+          {% for climate_entity in all_climate_entities %}
+            {% if climate_entity != trigger.entity_id
+                  and state_attr(climate_entity, 'temperature') is number
+                  and ((state_attr(climate_entity, 'temperature') | float
+                        - source_temperature | float) | abs
+                       >= sync_tolerance | float) %}
+              {% set ns.differs = true %}
+            {% endif %}
+          {% endfor %}
         {% endif %}
-      normalized_requested_temperature: >-
-        {{ ((requested_temperature | float / temperature_step | float) | round(0)
-            * temperature_step | float) | round(2) }}
-      effective_temperature_available: >-
-        {{ automatic_temperature_active or requested_temperature_available }}
-      effective_temperature: >-
-        {% if forced_reduced_active
-              or (time_window_mode_active
-                  and active_time_window_mode == 'reduced') %}
+        {{ ns.differs }}
+      reduced_condition_activated: >-
+        {{ trigger_id == 'reduced_condition_changed'
+           and trigger.to_state is not none
+           and trigger.to_state.state in ['on', 'active'] }}
+      reduced_condition_ended: >-
+        {{ trigger_id == 'reduced_condition_changed'
+           and trigger.to_state is not none
+           and trigger.to_state.state not in ['on', 'active']
+           and not reduced_condition_active }}
+      reduced_time_window_started: >-
+        {{ (trigger_id == 'time_window_1_started'
+            and time_window_1_active
+            and time_window_1_mode == 'reduced')
+           or (trigger_id == 'time_window_2_started'
+               and time_window_2_active
+               and time_window_2_mode == 'reduced')
+           or (trigger_id == 'time_window_3_started'
+               and time_window_3_active
+               and time_window_3_mode == 'reduced')
+           or (trigger_id == 'time_window_4_started'
+               and time_window_4_active
+               and time_window_4_mode == 'reduced') }}
+      reduced_time_window_ended: >-
+        {{ ((trigger_id == 'time_window_1_ended'
+             and time_window_1_mode == 'reduced')
+            or (trigger_id == 'time_window_2_ended'
+                and time_window_2_mode == 'reduced')
+            or (trigger_id == 'time_window_3_ended'
+                and time_window_3_mode == 'reduced')
+            or (trigger_id == 'time_window_4_ended'
+                and time_window_4_mode == 'reduced'))
+           and not reduced_policy_active }}
+      reduced_policy_started: >-
+        {{ reduced_condition_activated or reduced_time_window_started }}
+      reduced_policy_ended: >-
+        {{ reduced_condition_ended or reduced_time_window_ended }}
+      safeguard_due: >-
+        {{ ((trigger_id == 'safeguard_1' and safeguard_1_enabled)
+            or (trigger_id == 'safeguard_2' and safeguard_2_enabled)
+            or (trigger_id == 'safeguard_3' and safeguard_3_enabled))
+           and not (safeguard_blocker | count > 0
+                    and is_state(safeguard_blocker, 'on')) }}
+      manual_mode_enabled_externally: >-
+        {{ trigger_id == 'manual_mode_changed'
+           and trigger.to_state is not none
+           and trigger.to_state.state == 'on'
+           and trigger.to_state.context.parent_id is none }}
+      manual_temperature_change: >-
+        {{ climate_change_triggered
+           and source_temperature_is_current
+           and not reduced_policy_started
+           and not safeguard_due
+           and ((((source_temperature | float) - (automatic_temperature | float)) | abs
+                 >= sync_tolerance | float)
+                or (manual_mode_active
+                    and other_climate_differs_from_source)) }}
+      target_temperature_available: >-
+        {{ reduced_policy_started
+           or safeguard_due
+           or (reduced_policy_ended and manual_mode_active)
+           or manual_temperature_change
+           or manual_mode_enabled_externally
+           or not manual_mode_active }}
+      target_temperature: >-
+        {% if reduced_policy_started %}
           {% set raw = reduced_temperature | float %}
-        {% elif time_window_mode_active
-                and active_time_window_mode == 'eco' %}
-          {% set raw = eco_temperature | float %}
-        {% elif time_window_mode_active
-                and active_time_window_mode == 'heat' %}
-          {% set raw = comfort_temperature | float
-             if comfort_mode_active else normal_temperature | float %}
-        {% elif comfort_mode_active %}
-          {% set raw = comfort_temperature | float %}
-        {% elif normal_mode_active %}
+        {% elif safeguard_due %}
+          {% set raw = automatic_temperature | float %}
+        {% elif reduced_policy_ended and manual_mode_active %}
+          {% set raw = normal_temperature | float %}
+        {% elif manual_temperature_change %}
+          {% set raw = source_temperature | float %}
+        {% elif manual_mode_enabled_externally %}
           {% set raw = normal_temperature | float %}
         {% else %}
-          {% set raw = normalized_requested_temperature | float %}
+          {% set raw = automatic_temperature | float %}
         {% endif %}
         {{ ((raw / temperature_step | float) | round(0)
             * temperature_step | float) | round(2) }}
-      desired_heating_switch_on: >-
-        {{ not safeguard_heating_active
-           and not reduced_condition_activated
-           and requested_temperature_available
-           and normalized_requested_temperature > eco_temperature | float
-           and (not reduced_condition_active or manual_preheat_active) }}
-      all_climate_entities: >-
-        {{ ([master_climate_entity] + synchronized_climate_entities)
-           | unique | list }}
+      enable_manual_mode: >-
+        {{ manual_temperature_change and not manual_mode_active }}
+      disable_manual_mode: >-
+        {{ safeguard_due and manual_mode_active }}
   - if:
       - condition: template
-        value_template: >-
-          {{ requested_temperature_available
-             and (not stored_temperature_available
-                  or (stored_temperature
-                      - normalized_requested_temperature) | abs >= 0.01) }}
+        value_template: "{{ disable_manual_mode }}"
     then:
-      - action: input_number.set_value
+      - action: input_boolean.turn_off
         target:
-          entity_id: !input desired_temperature_helper
-        data:
-          value: "{{ normalized_requested_temperature }}"
+          entity_id: "{{ heating_switch_entity }}"
   - if:
       - condition: template
-        value_template: >-
-          {{ requested_temperature_available
-             and is_state(heating_switch_entity, 'on')
-                 != desired_heating_switch_on }}
+        value_template: "{{ enable_manual_mode }}"
     then:
-      - action: >-
-          input_boolean.turn_{{ 'on' if desired_heating_switch_on else 'off' }}
+      - action: input_boolean.turn_on
         target:
-          entity_id: !input heating_switch
+          entity_id: "{{ heating_switch_entity }}"
   - if:
       - condition: template
-        value_template: "{{ effective_temperature_available }}"
+        value_template: "{{ target_temperature_available }}"
     then:
       - repeat:
           for_each: "{{ all_climate_entities }}"
@@ -938,14 +842,14 @@ actions:
                     {{ has_value(climate_entity)
                        and state_attr(climate_entity, 'temperature') is number
                        and ((state_attr(climate_entity, 'temperature') | float
-                             - effective_temperature | float) | abs
+                             - target_temperature | float) | abs
                             >= sync_tolerance | float) }}
               then:
                 - action: climate.set_temperature
                   target:
                     entity_id: "{{ climate_entity }}"
                   data:
-                    temperature: "{{ effective_temperature }}"
+                    temperature: "{{ target_temperature }}"
 
 mode: queued
 max: 20
