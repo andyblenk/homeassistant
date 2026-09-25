@@ -1,17 +1,20 @@
 blueprint:
   name: Viessmann heating control
   description: >-
-    Version 0.3.1
+    Version 0.4.0
 
     Controls a Viessmann heating system through its ViCare operating modes.
-    Away conditions use standby to disable heating and domestic hot water.
+    Summer conditions use dhw for domestic hot water only. Away conditions
+    outside summer use forced reduced heating, which deactivates domestic hot
+    water while preserving the reduced temperature configured in the heating
+    system.
     An optional Pre-heat timer overrides away conditions: it uses dhw during
-    summer and dhwAndHeating otherwise. Summer conditions use dhw for domestic
-    hot water only. Otherwise, dhwAndHeating restores normal scheduled operation.
+    summer and dhwAndHeating otherwise. Otherwise, dhwAndHeating restores
+    normal scheduled operation.
 
-    Pre-heat has priority over away and summer conditions. Away conditions have
-    priority over summer conditions. A ViCare action is sent only when the
-    requested mode differs from active_vicare_mode.
+    Pre-heat has priority over summer and away conditions. Summer conditions
+    have priority over away conditions. An action is sent only when the
+    requested mode differs from the active mode.
   domain: automation
   author: Andreas Blenk
   homeassistant:
@@ -37,7 +40,7 @@ blueprint:
       input:
         reduced_condition_entities:
           name: Away conditions
-          description: Optional entities, for example nobody at home or vacation. Any on or active state selects standby.
+          description: Optional entities, for example nobody at home or vacation. Any on or active state selects permanently reduced heating and disables domestic hot water, unless Summer is active.
           default: []
           selector:
             entity:
@@ -113,35 +116,56 @@ actions:
       preheat_active: >-
         {{ preheat_timer_entity | count > 0
            and is_state(preheat_timer_entity, 'active') }}
-      requested_vicare_mode: >-
+      requested_control: >-
         {% if preheat_active and summer_active %}
           dhw
         {% elif preheat_active %}
           dhwAndHeating
-        {% elif away_active %}
-          standby
         {% elif summer_active %}
           dhw
+        {% elif away_active %}
+          forced_reduced
         {% else %}
           dhwAndHeating
         {% endif %}
+      requested_vicare_mode: >-
+        {{ requested_control if requested_control != 'forced_reduced' else '' }}
       active_vicare_mode: >-
         {{ state_attr(heating_climate_entity, 'active_vicare_mode') | default('', true) }}
       supported_vicare_modes: >-
         {{ state_attr(heating_climate_entity, 'vicare_modes') | default([], true) }}
+      active_hvac_mode: >-
+        {{ states(heating_climate_entity) }}
+      supported_hvac_modes: >-
+        {{ state_attr(heating_climate_entity, 'hvac_modes') | default([], true) }}
       mode_change_required: >-
         {{ has_value(heating_climate_entity)
-           and requested_vicare_mode in supported_vicare_modes
-           and active_vicare_mode != requested_vicare_mode }}
+           and ((requested_control == 'forced_reduced'
+                 and 'off' in supported_hvac_modes
+                 and active_hvac_mode != 'off')
+                or (requested_control != 'forced_reduced'
+                    and requested_vicare_mode in supported_vicare_modes
+                    and active_vicare_mode != requested_vicare_mode)) }}
   - if:
       - condition: template
         value_template: "{{ mode_change_required }}"
     then:
-      - action: vicare.set_vicare_mode
-        target:
-          entity_id: !input heating_climate
-        data:
-          vicare_mode: "{{ requested_vicare_mode }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ requested_control == 'forced_reduced' }}"
+            sequence:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: !input heating_climate
+                data:
+                  hvac_mode: "off"
+        default:
+          - action: vicare.set_vicare_mode
+            target:
+              entity_id: !input heating_climate
+            data:
+              vicare_mode: "{{ requested_vicare_mode }}"
 
 mode: single
 max_exceeded: silent
