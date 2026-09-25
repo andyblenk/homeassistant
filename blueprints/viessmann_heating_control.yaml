@@ -4,17 +4,18 @@ blueprint:
     Version 0.4.0
 
     Controls a Viessmann heating system through its ViCare operating modes.
-    Summer conditions use dhw for domestic hot water only. Away conditions
-    outside summer use forced reduced heating, which deactivates domestic hot
-    water while preserving the reduced temperature configured in the heating
-    system.
+    Summer conditions use dhw for domestic hot water only. Combined summer and
+    away conditions use standby to disable heating and domestic hot water. Away
+    conditions outside summer use forced reduced heating, which deactivates
+    domestic hot water while preserving the reduced temperature configured in
+    the heating system.
     An optional Pre-heat timer overrides away conditions: it uses dhw during
     summer and dhwAndHeating otherwise. Otherwise, dhwAndHeating restores
     normal scheduled operation.
 
-    Pre-heat has priority over summer and away conditions. Summer conditions
-    have priority over away conditions. An action is sent only when the
-    requested mode differs from the active mode.
+    Pre-heat has priority over summer and away conditions. Combined summer and
+    away conditions have priority over either condition by itself. An action is
+    sent only when the requested mode differs from the active mode.
   domain: automation
   author: Andreas Blenk
   homeassistant:
@@ -40,7 +41,7 @@ blueprint:
       input:
         reduced_condition_entities:
           name: Away conditions
-          description: Optional entities, for example nobody at home or vacation. Any on or active state selects permanently reduced heating and disables domestic hot water, unless Summer is active.
+          description: Optional entities, for example nobody at home or vacation. Any on or active state selects permanently reduced heating and disables domestic hot water. Together with Summer, it selects standby.
           default: []
           selector:
             entity:
@@ -121,6 +122,8 @@ actions:
           dhw
         {% elif preheat_active %}
           dhwAndHeating
+        {% elif summer_active and away_active %}
+          standby
         {% elif summer_active %}
           dhw
         {% elif away_active %}
