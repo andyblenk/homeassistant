@@ -1,7 +1,7 @@
 blueprint:
   name: Viessmann heating control
   description: >-
-    Version 0.4.0
+    Version 0.4.1
 
     Controls a Viessmann heating system through its ViCare operating modes.
     Summer conditions use dhw for domestic hot water only. Combined summer and
