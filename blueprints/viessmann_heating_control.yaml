@@ -1,7 +1,7 @@
 blueprint:
   name: Viessmann heating control
   description: >-
-    Version 0.4.1
+    Version 0.4.2
 
     Controls a Viessmann heating system through its ViCare operating modes.
     Summer conditions use dhw for domestic hot water only. Combined summer and
@@ -127,48 +127,29 @@ actions:
         {% elif summer_active %}
           dhw
         {% elif away_active %}
-          forced_reduced
+          forcedReduced
         {% else %}
           dhwAndHeating
         {% endif %}
       requested_vicare_mode: >-
-        {{ requested_control if requested_control != 'forced_reduced' else '' }}
+        {{ requested_control }}
       active_vicare_mode: >-
         {{ state_attr(heating_climate_entity, 'active_vicare_mode') | default('', true) }}
       supported_vicare_modes: >-
         {{ state_attr(heating_climate_entity, 'vicare_modes') | default([], true) }}
-      active_hvac_mode: >-
-        {{ states(heating_climate_entity) }}
-      supported_hvac_modes: >-
-        {{ state_attr(heating_climate_entity, 'hvac_modes') | default([], true) }}
       mode_change_required: >-
         {{ has_value(heating_climate_entity)
-           and ((requested_control == 'forced_reduced'
-                 and 'off' in supported_hvac_modes
-                 and active_hvac_mode != 'off')
-                or (requested_control != 'forced_reduced'
-                    and requested_vicare_mode in supported_vicare_modes
-                    and active_vicare_mode != requested_vicare_mode)) }}
+           and requested_vicare_mode in supported_vicare_modes
+           and active_vicare_mode != requested_vicare_mode }}
   - if:
       - condition: template
         value_template: "{{ mode_change_required }}"
     then:
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ requested_control == 'forced_reduced' }}"
-            sequence:
-              - action: climate.set_hvac_mode
-                target:
-                  entity_id: !input heating_climate
-                data:
-                  hvac_mode: "off"
-        default:
-          - action: vicare.set_vicare_mode
-            target:
-              entity_id: !input heating_climate
-            data:
-              vicare_mode: "{{ requested_vicare_mode }}"
+      - action: vicare.set_vicare_mode
+        target:
+          entity_id: !input heating_climate
+        data:
+          vicare_mode: "{{ requested_vicare_mode }}"
 
 mode: single
 max_exceeded: silent

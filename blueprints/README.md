@@ -104,7 +104,7 @@ Main inputs:
 
 [Source](viessmann_heating_control.yaml) · [Raw import URL](https://raw.githubusercontent.com/andyblenk/homeassistant/main/blueprints/viessmann_heating_control.yaml)
 
-Controls a Viessmann heating system through the Home Assistant ViCare integration. Summer conditions select domestic-hot-water-only mode `dhw`; combined summer and away conditions select `standby`, disabling both heating and domestic hot water. Away conditions outside summer select ViCare `ForcedReduced` (via Home Assistant HVAC mode `off`): heating remains at the boiler's configured reduced temperature and domestic hot water is disabled. Normal operation uses `dhwAndHeating`.
+Controls a Viessmann heating system through the Home Assistant ViCare integration. Summer conditions select domestic-hot-water-only mode `dhw`; combined summer and away conditions select `standby`, disabling both heating and domestic hot water. Away conditions outside summer select ViCare `forcedReduced`: heating remains at the boiler's configured reduced temperature and domestic hot water is disabled. Normal operation uses `dhwAndHeating`.
 
 An optional preheat Timer can override absence. The automation checks the active ViCare mode before sending a command and periodically verifies the required state without producing unnecessary service calls.
 
