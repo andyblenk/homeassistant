@@ -75,7 +75,9 @@ Main inputs:
 
 Synchronizes the target temperature between a master Home Assistant Climate entity and optional additional thermostats. Only target temperatures are synchronized; HVAC modes, presets, and measured temperatures remain unchanged.
 
-An Input Boolean selects **Manual** or **Automatic** operation. A manual temperature change on any connected thermostat enables Manual, synchronizes that temperature to the other thermostats, and holds it. With Automatic selected, Reduced, Comfort, Normal, Eco, and Heat behavior is determined by conditions and weekday-aware time windows. Entering Reduced always applies the Reduced temperature; a later manual change can deliberately preheat. Optional safeguards end Manual and return to Automatic.
+An Input Boolean selects **Manual** or **Automatic** operation. A manual temperature change on any connected thermostat enables Manual, synchronizes that temperature to the other thermostats, and holds it. With Automatic selected, Reduced, Eco, Comfort, and Normal behavior is determined by conditions and weekday-aware time windows. Each time window can optionally require a Boolean or binary sensor to be on. Overlapping windows use Reduced, then Eco, then Comfort, then Normal. Entering Reduced always applies the Reduced temperature; a later manual change can deliberately preheat. Optional safeguards end Manual and return to Automatic.
+
+Existing automations with a saved `heat` window value use the Normal temperature automatically. Select **Normal** in the blueprint editor when editing an existing window.
 
 Main inputs:
 
@@ -83,7 +85,7 @@ Main inputs:
 - Manual/Automatic Input Boolean
 - Normal, Comfort, Eco, and Reduced temperatures
 - Optional Reduced, Comfort, and Normal conditions
-- Up to four weekday-aware time windows
+- Up to four weekday-aware time windows, each with an optional condition entity
 - Optional heating safeguard times
 
 ## Smart Motion Light Control

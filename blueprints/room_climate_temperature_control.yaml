@@ -1,7 +1,7 @@
 blueprint:
   name: Room climate temperature control
   description: >-
-    Version 0.11.0
+    Version 0.12.0
 
     Controls the target temperature of one room and synchronizes it between a
     Home Assistant master climate entity and optional additional thermostats.
@@ -13,7 +13,8 @@ blueprint:
     later deliberate temperature change can preheat while Reduced remains
     active. Optional conditions can apply Reduced, Comfort, or Normal.
     Comfort and Normal activate immediately and deactivate after five stable
-    minutes. Up to four daily time windows can apply Reduced, Eco, or Heat.
+    minutes. Up to four daily time windows can apply Reduced, Eco, Comfort,
+    or Normal, optionally gated by an entity that is on or true.
     Up to three safeguard checks can end Manual and return to Automatic.
 
     Only target temperatures are synchronized. HVAC modes, presets, and measured
@@ -62,7 +63,7 @@ blueprint:
       input:
         normal_temperature:
           name: Normal temperature
-          description: Initial Manual temperature and the target for Normal or Heat automation.
+          description: Initial Manual temperature and the target for Normal automation.
           default: 21
           selector:
             number:
@@ -173,8 +174,19 @@ blueprint:
                   value: reduced
                 - label: Eco
                   value: eco
-                - label: Heat
-                  value: heat
+                - label: Comfort
+                  value: comfort
+                - label: Normal
+                  value: normal
+        time_window_1_condition_entity:
+          name: Condition entity
+          description: Optional Boolean or binary sensor. This window applies only while the entity is on or true.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
         time_window_1_weekdays:
           name: Weekdays
           description: Days on which this time window starts.
@@ -232,8 +244,19 @@ blueprint:
                   value: reduced
                 - label: Eco
                   value: eco
-                - label: Heat
-                  value: heat
+                - label: Comfort
+                  value: comfort
+                - label: Normal
+                  value: normal
+        time_window_2_condition_entity:
+          name: Condition entity
+          description: Optional Boolean or binary sensor. This window applies only while the entity is on or true.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
         time_window_2_weekdays:
           name: Weekdays
           description: Days on which this time window starts.
@@ -291,8 +314,19 @@ blueprint:
                   value: reduced
                 - label: Eco
                   value: eco
-                - label: Heat
-                  value: heat
+                - label: Comfort
+                  value: comfort
+                - label: Normal
+                  value: normal
+        time_window_3_condition_entity:
+          name: Condition entity
+          description: Optional Boolean or binary sensor. This window applies only while the entity is on or true.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
         time_window_3_weekdays:
           name: Weekdays
           description: Days on which this time window starts.
@@ -350,8 +384,19 @@ blueprint:
                   value: reduced
                 - label: Eco
                   value: eco
-                - label: Heat
-                  value: heat
+                - label: Comfort
+                  value: comfort
+                - label: Normal
+                  value: normal
+        time_window_4_condition_entity:
+          name: Condition entity
+          description: Optional Boolean or binary sensor. This window applies only while the entity is on or true.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
         time_window_4_weekdays:
           name: Weekdays
           description: Days on which this time window starts.
@@ -468,6 +513,18 @@ triggers:
     to: "off"
     for: "00:05:00"
     id: normal_condition_deactivated
+  - trigger: state
+    entity_id: !input time_window_1_condition_entity
+    id: time_window_1_condition_changed
+  - trigger: state
+    entity_id: !input time_window_2_condition_entity
+    id: time_window_2_condition_changed
+  - trigger: state
+    entity_id: !input time_window_3_condition_entity
+    id: time_window_3_condition_changed
+  - trigger: state
+    entity_id: !input time_window_4_condition_entity
+    id: time_window_4_condition_changed
   - trigger: time
     at: !input time_window_1_start
     id: time_window_1_started
@@ -528,21 +585,25 @@ actions:
       temperature_step: 0.5
       time_window_1_enabled: !input time_window_1_enabled
       time_window_1_mode: !input time_window_1_mode
+      time_window_1_condition_entity: !input time_window_1_condition_entity
       time_window_1_weekdays: !input time_window_1_weekdays
       time_window_1_start: !input time_window_1_start
       time_window_1_end: !input time_window_1_end
       time_window_2_enabled: !input time_window_2_enabled
       time_window_2_mode: !input time_window_2_mode
+      time_window_2_condition_entity: !input time_window_2_condition_entity
       time_window_2_weekdays: !input time_window_2_weekdays
       time_window_2_start: !input time_window_2_start
       time_window_2_end: !input time_window_2_end
       time_window_3_enabled: !input time_window_3_enabled
       time_window_3_mode: !input time_window_3_mode
+      time_window_3_condition_entity: !input time_window_3_condition_entity
       time_window_3_weekdays: !input time_window_3_weekdays
       time_window_3_start: !input time_window_3_start
       time_window_3_end: !input time_window_3_end
       time_window_4_enabled: !input time_window_4_enabled
       time_window_4_mode: !input time_window_4_mode
+      time_window_4_condition_entity: !input time_window_4_condition_entity
       time_window_4_weekdays: !input time_window_4_weekdays
       time_window_4_start: !input time_window_4_start
       time_window_4_end: !input time_window_4_end
@@ -561,7 +622,7 @@ actions:
             | selectattr('state', 'eq', 'on') | list | count > 0)
            or (expand(reduced_condition_entities)
                | selectattr('state', 'eq', 'active') | list | count > 0) }}
-      time_window_1_active: >-
+      time_window_1_in_schedule: >-
         {% set start = today_at(time_window_1_start) %}
         {% set end = today_at(time_window_1_end) %}
         {% set day_index = now().weekday() %}
@@ -574,7 +635,11 @@ actions:
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
-      time_window_2_active: >-
+      time_window_1_active: >-
+        {{ time_window_1_in_schedule
+           and (time_window_1_condition_entity | count == 0
+                or states(time_window_1_condition_entity) in ['on', 'true']) }}
+      time_window_2_in_schedule: >-
         {% set start = today_at(time_window_2_start) %}
         {% set end = today_at(time_window_2_end) %}
         {% set day_index = now().weekday() %}
@@ -587,7 +652,11 @@ actions:
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
-      time_window_3_active: >-
+      time_window_2_active: >-
+        {{ time_window_2_in_schedule
+           and (time_window_2_condition_entity | count == 0
+                or states(time_window_2_condition_entity) in ['on', 'true']) }}
+      time_window_3_in_schedule: >-
         {% set start = today_at(time_window_3_start) %}
         {% set end = today_at(time_window_3_end) %}
         {% set day_index = now().weekday() %}
@@ -600,7 +669,11 @@ actions:
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
-      time_window_4_active: >-
+      time_window_3_active: >-
+        {{ time_window_3_in_schedule
+           and (time_window_3_condition_entity | count == 0
+                or states(time_window_3_condition_entity) in ['on', 'true']) }}
+      time_window_4_in_schedule: >-
         {% set start = today_at(time_window_4_start) %}
         {% set end = today_at(time_window_4_end) %}
         {% set day_index = now().weekday() %}
@@ -613,6 +686,10 @@ actions:
            and start != end
            and ((start < end and start <= now() < end)
                 or (start > end and (now() >= start or now() < end))) }}
+      time_window_4_active: >-
+        {{ time_window_4_in_schedule
+           and (time_window_4_condition_entity | count == 0
+                or states(time_window_4_condition_entity) in ['on', 'true']) }}
       active_time_window_mode: >-
         {% set active_modes = [] %}
         {% if time_window_1_active %}
@@ -631,8 +708,10 @@ actions:
           reduced
         {% elif 'eco' in active_modes %}
           eco
-        {% elif 'heat' in active_modes %}
-          heat
+        {% elif 'comfort' in active_modes %}
+          comfort
+        {% elif 'normal' in active_modes or 'heat' in active_modes %}
+          normal
         {% else %}
           neutral
         {% endif %}
@@ -685,9 +764,10 @@ actions:
           {% set raw = reduced_temperature | float %}
         {% elif active_time_window_mode == 'eco' %}
           {% set raw = eco_temperature | float %}
-        {% elif active_time_window_mode == 'heat' %}
-          {% set raw = comfort_temperature | float
-             if comfort_mode_active else normal_temperature | float %}
+        {% elif active_time_window_mode == 'comfort' %}
+          {% set raw = comfort_temperature | float %}
+        {% elif active_time_window_mode == 'normal' %}
+          {% set raw = normal_temperature | float %}
         {% elif comfort_mode_active %}
           {% set raw = comfort_temperature | float %}
         {% elif normal_mode_active %}
@@ -752,6 +832,21 @@ actions:
            or (trigger_id == 'time_window_4_started'
                and time_window_4_active
                and time_window_4_mode == 'reduced') }}
+      reduced_time_window_condition_activated: >-
+        {{ trigger is defined
+           and trigger.to_state is defined
+           and trigger.to_state is not none
+           and trigger.to_state.state in ['on', 'true']
+           and (trigger.from_state is none
+                or trigger.from_state.state not in ['on', 'true'])
+           and ((trigger_id == 'time_window_1_condition_changed'
+                 and time_window_1_active and time_window_1_mode == 'reduced')
+                or (trigger_id == 'time_window_2_condition_changed'
+                    and time_window_2_active and time_window_2_mode == 'reduced')
+                or (trigger_id == 'time_window_3_condition_changed'
+                    and time_window_3_active and time_window_3_mode == 'reduced')
+                or (trigger_id == 'time_window_4_condition_changed'
+                    and time_window_4_active and time_window_4_mode == 'reduced')) }}
       reduced_time_window_ended: >-
         {{ ((trigger_id == 'time_window_1_ended'
              and time_window_1_mode == 'reduced')
@@ -762,10 +857,28 @@ actions:
             or (trigger_id == 'time_window_4_ended'
                 and time_window_4_mode == 'reduced'))
            and not reduced_policy_active }}
+      reduced_time_window_condition_ended: >-
+        {{ trigger is defined
+           and trigger.to_state is defined
+           and trigger.to_state is not none
+           and trigger.to_state.state not in ['on', 'true']
+           and trigger.from_state is not none
+           and trigger.from_state.state in ['on', 'true']
+           and ((trigger_id == 'time_window_1_condition_changed'
+                 and time_window_1_in_schedule and time_window_1_mode == 'reduced')
+                or (trigger_id == 'time_window_2_condition_changed'
+                    and time_window_2_in_schedule and time_window_2_mode == 'reduced')
+                or (trigger_id == 'time_window_3_condition_changed'
+                    and time_window_3_in_schedule and time_window_3_mode == 'reduced')
+                or (trigger_id == 'time_window_4_condition_changed'
+                    and time_window_4_in_schedule and time_window_4_mode == 'reduced'))
+           and not reduced_policy_active }}
       reduced_policy_started: >-
-        {{ reduced_condition_activated or reduced_time_window_started }}
+        {{ reduced_condition_activated or reduced_time_window_started
+           or reduced_time_window_condition_activated }}
       reduced_policy_ended: >-
-        {{ reduced_condition_ended or reduced_time_window_ended }}
+        {{ reduced_condition_ended or reduced_time_window_ended
+           or reduced_time_window_condition_ended }}
       safeguard_due: >-
         {{ ((trigger_id == 'safeguard_1' and safeguard_1_enabled)
             or (trigger_id == 'safeguard_2' and safeguard_2_enabled)
